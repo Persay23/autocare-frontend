@@ -1,12 +1,20 @@
-// Single event row in the timeline
-const DOT_STYLES = {
+import type { TimelineEvent } from '../../types'
+
+interface TimelineItemProps {
+  event: TimelineEvent
+  showVehicle?: boolean
+  onClick?: () => void
+  isLast?: boolean
+}
+
+const DOT_STYLES: Record<string, { borderColor: string; bg: string; icon: string }> = {
   Maintenance: { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)', icon: '🔧' },
   Fuel:        { borderColor: 'var(--accent2)', bg: 'rgba(79,143,255,0.12)',  icon: '⛽' },
   Liquid:      { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)', icon: '💧' },
   Other:       { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)', icon: '📋' },
 }
 
-export default function TimelineItem({ event, showVehicle, onClick, isLast }) {
+export default function TimelineItem({ event, showVehicle, onClick, isLast }: TimelineItemProps) {
   const dot = DOT_STYLES[event.type] ?? DOT_STYLES.Other
 
   const formattedDate = event.date

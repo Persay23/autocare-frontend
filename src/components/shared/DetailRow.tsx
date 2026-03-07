@@ -1,5 +1,12 @@
-// Key-value row used in all detail screens
-export default function DetailRow({ label, value, valueColor }) {
+import type { ReactNode } from 'react'
+
+interface DetailRowProps {
+  label: string
+  value?: ReactNode
+  valueColor?: string
+}
+
+export default function DetailRow({ label, value, valueColor }: DetailRowProps) {
   return (
     <div style={{
       display: 'flex',

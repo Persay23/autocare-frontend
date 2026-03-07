@@ -1,6 +1,20 @@
+import type { ChangeEvent, ReactNode, CSSProperties } from 'react'
 import { inputStyle, onFocus, onBlur } from './formStyles'
 
-const labelStyle = {
+interface FormInputProps {
+  label: string
+  value: string | number
+  onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void
+  type?: string
+  placeholder?: string
+  required?: boolean
+  min?: string | number
+  max?: string | number
+  children?: ReactNode
+  hint?: string
+}
+
+const labelStyle: CSSProperties = {
   display: 'block',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: 9,
@@ -21,7 +35,7 @@ export default function FormInput({
   max,
   children,
   hint,
-}) {
+}: FormInputProps) {
   const isSelect = !!children
 
   return (
@@ -31,7 +45,7 @@ export default function FormInput({
       {isSelect ? (
         <select
           value={value}
-          onChange={onChange}
+          onChange={onChange as React.ChangeEventHandler<HTMLSelectElement>}
           required={required}
           style={inputStyle}
           onFocus={onFocus}
@@ -43,7 +57,7 @@ export default function FormInput({
         <input
           type={type}
           value={value}
-          onChange={onChange}
+          onChange={onChange as React.ChangeEventHandler<HTMLInputElement>}
           placeholder={placeholder}
           required={required}
           min={min}

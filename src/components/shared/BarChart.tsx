@@ -1,6 +1,16 @@
-// Simple SVG bar chart — maintenance + fuel bars per month
-// data: array of { label, maintenance, fuel }
-export default function BarChart({ data = [], title, subtitle }) {
+interface BarChartDataPoint {
+  label: string
+  maintenance?: number
+  fuel?: number
+}
+
+interface BarChartProps {
+  data?: BarChartDataPoint[]
+  title?: string
+  subtitle?: string
+}
+
+export default function BarChart({ data = [], title, subtitle }: BarChartProps) {
   if (!data.length) return null
 
   const maxVal = Math.max(...data.flatMap((d) => [d.maintenance ?? 0, d.fuel ?? 0]), 1)

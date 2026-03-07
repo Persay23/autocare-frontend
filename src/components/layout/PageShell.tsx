@@ -1,8 +1,7 @@
+import type { ReactNode } from 'react'
 import BottomNav from './BottomNav'
 
-// Every protected page wraps its content in this.
-// It handles the fixed bottom nav and scrollable content area.
-export default function PageShell({ children }) {
+export default function PageShell({ children }: { children: ReactNode }) {
   return (
     <div style={{
       display: 'flex',

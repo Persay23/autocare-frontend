@@ -1,5 +1,11 @@
-// Card container used in all detail screens
-export default function DetailCard({ title, children }) {
+import type { ReactNode } from 'react'
+
+interface DetailCardProps {
+  title?: string
+  children: ReactNode
+}
+
+export default function DetailCard({ title, children }: DetailCardProps) {
   return (
     <div style={{
       background: 'var(--surface2)',

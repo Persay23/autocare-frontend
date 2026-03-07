@@ -1,7 +1,8 @@
 import { SERVICE_ICONS } from '../../constants/icons'
 import { formatEnumLabel } from '../../utils/formatters'
+import type { MaintenanceRecord } from '../../types'
 
-export default function RecordItem({ record, onClick }) {
+export default function RecordItem({ record, onClick }: { record: MaintenanceRecord; onClick: () => void }) {
   const icon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
 
   return (

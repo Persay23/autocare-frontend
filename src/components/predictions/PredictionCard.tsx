@@ -1,8 +1,15 @@
 import { formatEnumLabel } from '../../utils/formatters'
 import { toConfidencePercent } from '../../utils/predictions'
+import type { Prediction } from '../../types'
 
-// status: 'Active' | 'Completed' | 'Ignored'
-export default function PredictionCard({ prediction, onDone, onIgnore, onClick }) {
+interface PredictionCardProps {
+  prediction: Prediction
+  onDone?: (p: Prediction) => void
+  onIgnore?: (p: Prediction) => void
+  onClick?: () => void
+}
+
+export default function PredictionCard({ prediction, onDone, onIgnore, onClick }: PredictionCardProps) {
   const isCompleted = prediction.status === 'Completed'
   const isIgnored   = prediction.status === 'Ignored'
   const isDim       = isCompleted || isIgnored

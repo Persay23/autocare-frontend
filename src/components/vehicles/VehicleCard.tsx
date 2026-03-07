@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import StatusPill from '../shared/StatusPill'
 import HealthBar from '../shared/HealthBar'
+import type { Vehicle, ComponentHealth } from '../../types'
 
-function StateDots({ health }) {
+function StateDots({ health }: { health: ComponentHealth[] }) {
   if (!health?.length) return null
 
-  const dotColor = {
+  const dotColor: Record<string, string> = {
     Perfect: '#38bdf8',
     Good: '#34d399',
     Normal: '#fbbf24',
@@ -14,14 +15,14 @@ function StateDots({ health }) {
     Unknown: '#7b80a8',
   }
 
-  const counts = health.reduce((acc, component) => {
+  const counts = health.reduce<Record<string, number>>((acc, component) => {
     acc[component.currentState] = (acc[component.currentState] ?? 0) + 1
     return acc
   }, {})
 
   const order = ['Perfect', 'Good', 'Normal', 'Repair', 'Critical', 'Unknown']
   const dots = order.flatMap((state) => Array(counts[state] ?? 0).fill(state))
-  const abbrev = { Perfect: 'P', Good: 'G', Normal: 'N', Repair: 'R', Critical: 'C', Unknown: 'U' }
+  const abbrev: Record<string, string> = { Perfect: 'P', Good: 'G', Normal: 'N', Repair: 'R', Critical: 'C', Unknown: 'U' }
   const label = order
     .filter((state) => counts[state])
     .map((state) => `${counts[state]}${abbrev[state]}`)
@@ -55,7 +56,7 @@ function StateDots({ health }) {
   )
 }
 
-export default function VehicleCard({ vehicle, health }) {
+export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; health: ComponentHealth[] | null }) {
   const navigate = useNavigate()
 
   const overallHealth = health?.length

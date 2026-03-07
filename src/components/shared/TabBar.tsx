@@ -1,6 +1,16 @@
 import { NavLink } from 'react-router-dom'
 
-export default function TabBar({ tabs, basePath }) {
+interface Tab {
+  label: string
+  to: string
+}
+
+interface TabBarProps {
+  tabs: Tab[]
+  basePath: string
+}
+
+export default function TabBar({ tabs, basePath }: TabBarProps) {
   return (
     <div style={{
       display: 'flex',
