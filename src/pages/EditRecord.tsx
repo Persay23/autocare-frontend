@@ -14,13 +14,15 @@ export default function EditRecord() {
   const { vehicleId, recordId } = useParams()
   const navigate = useNavigate()
 
-  const [form, setForm] = useState(null)
+  interface RecordForm { serviceName: string; serviceType: string; serviceDate: string; cost: string | number; description: string }
+
+  const [form, setForm] = useState<RecordForm | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getRecordById(recordId).then((res) => {
+    getRecordById(recordId!).then((res) => {
       const r = res.data
       setForm({
         serviceName: r.serviceName ?? '',
@@ -32,24 +34,26 @@ export default function EditRecord() {
     }).finally(() => setLoading(false))
   }, [recordId])
 
-  const set = (field) => (e) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm((prev) => prev ? { ...prev, [field]: e.target.value } : prev)
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!form) return
     setError(null)
     setSaving(true)
     try {
-      await updateRecord(recordId, {
+      await updateRecord(recordId!, {
         serviceName: form.serviceName || null,
         serviceType: form.serviceType,
         serviceDate: new Date(form.serviceDate).toISOString(),
-        cost: form.cost ? parseFloat(form.cost) : 0,
+        cost: form.cost ? parseFloat(String(form.cost)) : 0,
         description: form.description || null,
       })
       navigate(`/vehicles/${vehicleId}/records/${recordId}`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to update record.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to update record.')
     } finally {
       setSaving(false)
     }
@@ -57,11 +61,11 @@ export default function EditRecord() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this record?')) return
-    await deleteRecord(recordId)
+    await deleteRecord(recordId!)
     navigate(`/vehicles/${vehicleId}/records`)
   }
 
-  if (loading) return <PageShell><LoadingText /></PageShell>
+  if (loading || !form) return <PageShell><LoadingText /></PageShell>
 
   return (
     <PageShell>

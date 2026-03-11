@@ -5,11 +5,12 @@ import TimelineItem from '../components/shared/TimelineItem'
 import { getVehicles } from '../api/vehicles'
 import { getVehicleTimeline } from '../api/timeline'
 import { useNavigate } from 'react-router-dom'
+import type { Vehicle, TimelineEvent } from '../types'
 
 export default function Timeline() {
-  const [vehicles, setVehicles] = useState([])
-  const [selectedId, setSelectedId] = useState(null)
-  const [events, setEvents] = useState([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function Timeline() {
 
   const navigate = useNavigate()
 
-  const handleEventClick = (event) => {
+  const handleEventClick = (event: TimelineEvent) => {
     if (!event.vehicleId || !event.relatedId) return
 
     if (event.type === 'Maintenance' || event.type === 'Service') {
@@ -45,20 +46,21 @@ export default function Timeline() {
         getVehicleTimeline(v.vehicleId).then((res) => ({
           vehicleId: v.vehicleId,
           vehicleName: `${v.brand} ${v.model}`,
-          events: res.data,
+          events: res.data as TimelineEvent[],
         }))
       )
     ).then((results) => {
-      const allEvents = results
+      const allEvents: TimelineEvent[] = results
         .filter((r) => r.status === 'fulfilled')
-        .flatMap(({ value }) =>
-          (Array.isArray(value.events) ? value.events : []).map((e) => ({
+        .flatMap((r) => {
+          const { value } = r as PromiseFulfilledResult<{ vehicleId: number; vehicleName: string; events: TimelineEvent[] }>
+          return (Array.isArray(value.events) ? value.events : []).map((e) => ({
             ...e,
             vehicleName: value.vehicleName,
             vehicleId: value.vehicleId,
           }))
-        )
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        })
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
       setEvents(allEvents)
     }).finally(() => setLoading(false))

@@ -3,7 +3,7 @@ import StatusPill from '../shared/StatusPill'
 import HealthBar from '../shared/HealthBar'
 import type { Vehicle, ComponentHealth } from '../../types'
 
-function StateDots({ health }: { health: ComponentHealth[] }) {
+function StateDots({ health }: { health: ComponentHealth[] | null | undefined }) {
   if (!health?.length) return null
 
   const dotColor: Record<string, string> = {

@@ -15,19 +15,19 @@ export default function Profile() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     name: user?.name ?? '',
-    age: user?.age ?? '',
-    drivingExperience: user?.drivingExperience ?? '',
+    age: String(user?.age ?? ''),
+    drivingExperience: String(user?.drivingExperience ?? ''),
   })
 
-  const set = (field) => (e) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
-  const setPassword = (field) => (e) =>
+  const setPassword = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setPasswordForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleLogout = async () => {
@@ -142,7 +142,7 @@ export default function Profile() {
                 setLoading(true)
                 setError(null)
                 try {
-                  await updateUserProfile(user.id, {
+                  await updateUserProfile(user!.id, {
                     name: form.name || null,
                     age: form.age ? Number.parseInt(form.age, 10) : null,
                     drivingExperience: form.drivingExperience
@@ -207,7 +207,7 @@ export default function Profile() {
                 setLoading(true)
                 setError(null)
                 try {
-                  await changeUserPassword(user.id, {
+                  await changeUserPassword(user!.id, {
                     currentPassword: passwordForm.currentPassword,
                     newPassword: passwordForm.newPassword,
                   })

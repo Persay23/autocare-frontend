@@ -5,11 +5,12 @@ import StatCard from '../components/shared/StatCard'
 import BarChart from '../components/shared/BarChart'
 import { getVehicles } from '../api/vehicles'
 import { getVehicleCostSummary } from '../api/expenses'
+import type { Vehicle, MonthlyCostSummary } from '../types'
 
 export default function Expenses() {
-  const [vehicles, setVehicles] = useState([])
-  const [selectedId, setSelectedId] = useState(null)
-  const [summaries, setSummaries] = useState({}) // { vehicleId: costData[] }
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [summaries, setSummaries] = useState<Record<number, MonthlyCostSummary[]>>({})
   const [loading, setLoading] = useState(true)
 
   // Load all vehicles once
@@ -34,10 +35,10 @@ export default function Expenses() {
     Promise.allSettled(
       targets.map((v) =>
         getVehicleCostSummary(v.vehicleId, from.toISOString(), to.toISOString())
-          .then((res) => ({ vehicleId: v.vehicleId, data: res.data }))
+          .then((res) => ({ vehicleId: v.vehicleId, data: res.data as MonthlyCostSummary[] }))
       )
     ).then((results) => {
-      const map = {}
+      const map: Record<number, MonthlyCostSummary[]> = {}
       results.forEach((r) => {
         if (r.status === 'fulfilled') {
           map[r.value.vehicleId] = r.value.data
@@ -49,10 +50,10 @@ export default function Expenses() {
 
   // Merge summaries into chart data
   const chartData = (() => {
-    const allData = Object.values(summaries).flat()
+    const allData: MonthlyCostSummary[] = Object.values(summaries).flat()
     if (!allData.length) return []
 
-    const byMonth = {}
+    const byMonth: Record<string, { label: string; maintenance: number; fuel: number }> = {}
     allData.forEach((d) => {
       const label = new Date(d.month).toLocaleDateString('en-GB', { month: 'short' })
       if (!byMonth[label]) byMonth[label] = { label, maintenance: 0, fuel: 0 }

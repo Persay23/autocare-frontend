@@ -13,13 +13,15 @@ import { formatEnumLabel } from '../utils/formatters'
 export default function EditComponent() {
   const { vehicleId, componentId } = useParams()
   const navigate = useNavigate()
-  const [form, setForm] = useState(null)
+  interface ComponentForm { componentType: string; vehicleComponentName: string; vehicleComponentBrand: string; state: string; installationDate: string; currentMileage: string | number; expectedLifetimeKm: string | number; expectedLifetimeYears: string | number; notes: string }
+
+  const [form, setForm] = useState<ComponentForm | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getComponentById(componentId).then((res) => {
+    getComponentById(componentId!).then((res) => {
       const c = res.data
       setForm({
         componentType: c.componentType ?? '--',
@@ -35,30 +37,32 @@ export default function EditComponent() {
     }).finally(() => setLoading(false))
   }, [componentId])
 
-  const set = (field) => (e) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((prev) => prev ? { ...prev, [field]: e.target.value } : prev)
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!form) return
     setError(null)
     setSaving(true)
     const defaults = COMPONENT_DEFAULTS[form.componentType] ?? COMPONENT_DEFAULTS.Other
     try {
-      await updateComponent(componentId, {
-        vehicleId: Number.parseInt(vehicleId, 10),
+      await updateComponent(componentId!, {
+        vehicleId: Number.parseInt(vehicleId!, 10),
         componentType: form.componentType,
         vehicleComponentName: form.vehicleComponentName || null,
         vehicleComponentBrand: form.vehicleComponentBrand || null,
         state: form.state,
         installationDate: new Date(form.installationDate).toISOString(),
-        currentMileage: form.currentMileage ? Number.parseInt(form.currentMileage, 10) : 0,
-        expectedLifetimeKm: defaults.lifetimeKm,       // ← auto from defaults
-        expectedLifetimeYears: defaults.lifetimeYears,  // ← auto from defaults
+        currentMileage: form.currentMileage ? Number.parseInt(String(form.currentMileage), 10) : 0,
+        expectedLifetimeKm: defaults.lifetimeKm,
+        expectedLifetimeYears: defaults.lifetimeYears,
         notes: form.notes || null,
       })
       navigate(`/vehicles/${vehicleId}/components/${componentId}`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to update component.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to update component.')
     } finally {
       setSaving(false)
     }
@@ -66,11 +70,11 @@ export default function EditComponent() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this component?')) return
-    await deleteComponent(componentId)
+    await deleteComponent(componentId!)
     navigate(`/vehicles/${vehicleId}/components`)
   }
 
-  if (loading) return <PageShell><LoadingText /></PageShell>
+  if (loading || !form) return <PageShell><LoadingText /></PageShell>
 
   return (
     <PageShell>

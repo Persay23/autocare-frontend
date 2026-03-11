@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, type ReactNode } from 'react'
 import { getMe, login as apiLogin, logout as apiLogout } from '../api/auth'
 import type { AuthContextValue, User } from '../types'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {

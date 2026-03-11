@@ -5,13 +5,14 @@ import DetailCard from '../components/shared/DetailCard'
 import DetailRow from '../components/shared/DetailRow'
 import ActionButton from '../components/shared/ActionButton'
 import { getFuelById, deleteFuelEntry } from '../api/fuel'
+import type { FuelEntry } from '../types'
 import { LoadingText } from '../components/shared/AsyncStates'
 import { backBtnStyle } from '../styles/pageStyles'
 
 export default function FuelDetail() {
   const { vehicleId, entryId } = useParams()
   const navigate = useNavigate()
-  const [entry, setEntry] = useState(null)
+  const [entry, setEntry] = useState<FuelEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -19,14 +20,14 @@ export default function FuelDetail() {
   useEffect(() => {
     if (!entryId) return
     getFuelById(entryId)
-      .then((res) => setEntry(res.data))
+      .then((res) => setEntry(res.data as FuelEntry))
       .finally(() => setLoading(false))
   }, [entryId])
 
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await deleteFuelEntry(entryId)
+      await deleteFuelEntry(entryId!)
       navigate(`/vehicles/${vehicleId}/fuel`)
     } finally {
       setDeleting(false)

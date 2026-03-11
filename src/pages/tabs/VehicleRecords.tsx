@@ -4,14 +4,16 @@ import RecordItem from '../../components/records/RecordItem'
 import { getRecordsByVehicle } from '../../api/records'
 import { LoadingState, ErrorState, EmptyState } from '../../components/shared/AsyncStates'
 
-export default function VehicleRecords({ vehicleId }) {
+import type { MaintenanceRecord } from '../../types'
+
+export default function VehicleRecords({ vehicleId }: { vehicleId: string | undefined }) {
   const navigate = useNavigate()
-  const [records, setRecords] = useState([])
+  const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getRecordsByVehicle(vehicleId)
+    getRecordsByVehicle(vehicleId!)
       .then((res) => setRecords(res.data))
       .catch(() => setError('Failed to load records.'))
       .finally(() => setLoading(false))

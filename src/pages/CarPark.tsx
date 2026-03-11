@@ -5,30 +5,31 @@ import VehicleCard from '../components/vehicles/VehicleCard'
 import { getVehicles } from '../api/vehicles'
 import { getComponentHealth } from '../api/components'
 import { LoadingState, ErrorState, EmptyState } from '../components/shared/AsyncStates'
+import type { Vehicle, ComponentHealth } from '../types'
 
 export default function CarPark() {
   const navigate = useNavigate()
-  const [vehicles, setVehicles] = useState([])
-  const [healthMap, setHealthMap] = useState({})
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [healthMap, setHealthMap] = useState<Record<number, ComponentHealth[]>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getVehicles()
       .then(async (res) => {
-        const list = res.data
+        const list: Vehicle[] = res.data
         setVehicles(list)
 
         const healthResults = await Promise.allSettled(
           list.map((vehicle) =>
             getComponentHealth(vehicle.vehicleId).then((r) => ({
               vehicleId: vehicle.vehicleId,
-              health: r.data,
+              health: r.data as ComponentHealth[],
             }))
           )
         )
 
-        const map = {}
+        const map: Record<number, ComponentHealth[]> = {}
         healthResults.forEach((result) => {
           if (result.status === 'fulfilled') {
             map[result.value.vehicleId] = result.value.health

@@ -7,14 +7,16 @@ import { LoadingState, ErrorState, EmptyState } from '../../components/shared/As
 import { COMPONENT_ICONS } from '../../constants/icons'
 import { formatEnumLabel } from '../../utils/formatters'
 
-export default function VehicleComponents({ vehicleId }) {
+import type { ComponentHealth } from '../../types'
+
+export default function VehicleComponents({ vehicleId }: { vehicleId: string | undefined }) {
   const navigate = useNavigate()
-  const [health, setHealth] = useState([])                                                                        
+  const [health, setHealth] = useState<ComponentHealth[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getComponentHealth(vehicleId)
+    getComponentHealth(vehicleId!)
       .then((res) => setHealth(res.data))
       .catch(() => setError('Failed to load components.'))
       .finally(() => setLoading(false))

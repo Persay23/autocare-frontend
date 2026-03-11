@@ -5,6 +5,7 @@ import DetailCard from '../components/shared/DetailCard'
 import DetailRow from '../components/shared/DetailRow'
 import ActionButton from '../components/shared/ActionButton'
 import { getRecordById, deleteRecord } from '../api/records'
+import type { MaintenanceRecord } from '../types'
 import { LoadingText } from '../components/shared/AsyncStates'
 import { backBtnStyle } from '../styles/pageStyles'
 import { SERVICE_ICONS } from '../constants/icons'
@@ -13,21 +14,21 @@ import { formatEnumLabel } from '../utils/formatters'
 export default function RecordDetail() {
   const { vehicleId, recordId } = useParams()
   const navigate = useNavigate()
-  const [record, setRecord] = useState(null)
+  const [record, setRecord] = useState<MaintenanceRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
-    getRecordById(recordId)
-      .then((res) => setRecord(res.data))
+    getRecordById(recordId!)
+      .then((res) => setRecord(res.data as MaintenanceRecord))
       .finally(() => setLoading(false))
   }, [recordId])
 
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await deleteRecord(recordId)
+      await deleteRecord(recordId!)
       navigate(`/vehicles/${vehicleId}/records`)
     } finally {
       setDeleting(false)
@@ -87,9 +88,9 @@ export default function RecordDetail() {
         <DetailRow label="Description" value={record.description} />
       </DetailCard>
 
-      {record.maintenanceRecordComponents?.length > 0 && (
+      {(record.maintenanceRecordComponents?.length ?? 0) > 0 && (
         <DetailCard title="Components Serviced">
-          {record.maintenanceRecordComponents.map((component) => (
+          {(record.maintenanceRecordComponents ?? []).map((component) => (
             <div
               key={component.maintenanceRecordComponentId}
               style={{

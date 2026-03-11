@@ -1,4 +1,4 @@
-export const COMPONENT_DEFAULTS = {
+export const COMPONENT_DEFAULTS: Record<string, { lifetimeKm: number; lifetimeYears: number }> = {
   Engine: { lifetimeKm: 150000, lifetimeYears: 10 },
   Transmission: { lifetimeKm: 180000, lifetimeYears: 10 },
   Brakes: { lifetimeKm: 50000, lifetimeYears: 5 },

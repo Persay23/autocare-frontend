@@ -7,13 +7,14 @@ import ActionButton from '../components/shared/ActionButton'
 import StatusPill from '../components/shared/StatusPill'
 import HealthBar from '../components/shared/HealthBar'
 import { getComponentById, deleteComponent, getComponentHistory } from '../api/components'
+import type { VehicleComponent } from '../types'
 import { LoadingText } from '../components/shared/AsyncStates'
 import { backBtnStyle } from '../styles/pageStyles'
 import { COMPONENT_ICONS } from '../constants/icons'
 import { formatEnumLabel } from '../utils/formatters'
 
 // ── change type colours ───────────────────────────────────────────────────────
-const CHANGE_TYPE_STYLE = {
+const CHANGE_TYPE_STYLE: Record<string, { bg: string; color: string }> = {
   Replaced: { bg: 'rgba(52,211,153,0.1)',  color: 'var(--green)'   },
   Repaired: { bg: 'rgba(108,99,255,0.1)',  color: 'var(--accent)'  },
   Inspected:{ bg: 'rgba(79,143,255,0.1)',  color: 'var(--accent2)' },
@@ -22,9 +23,10 @@ const CHANGE_TYPE_STYLE = {
   Other:    { bg: 'rgba(123,128,168,0.1)', color: 'var(--text2)'   },
 }
 
-function HistoryItem({ item, vehicleId, onNavigate }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function HistoryItem({ item, vehicleId, onNavigate }: { item: any; vehicleId: string | undefined; onNavigate: (path: string) => void }) {
   const style = CHANGE_TYPE_STYLE[item.componentChangeType] ?? CHANGE_TYPE_STYLE.Other
-  const date = new Date(item.serviceDate).toLocaleDateString('en-GB', {
+  const date = new Date(item.serviceDate as string).toLocaleDateString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric',
   })
   const total =
@@ -133,21 +135,21 @@ function HistoryItem({ item, vehicleId, onNavigate }) {
 export default function ComponentDetail() {
   const { vehicleId, componentId } = useParams()
   const navigate = useNavigate()
-  const [component, setComponent] = useState(null)
-  const [history, setHistory] = useState([])
+  const [component, setComponent] = useState<VehicleComponent | null>(null)
+  const [history, setHistory] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    getComponentById(componentId)
-      .then((res) => setComponent(res.data))
+    getComponentById(componentId!)
+      .then((res) => setComponent(res.data as VehicleComponent))
       .finally(() => setLoading(false))
   }, [componentId])
 
   useEffect(() => {
-    getComponentHistory(componentId)
+    getComponentHistory(componentId!)
       .then((res) => setHistory(Array.isArray(res.data) ? res.data : []))
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false))
@@ -156,7 +158,7 @@ export default function ComponentDetail() {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await deleteComponent(componentId)
+      await deleteComponent(componentId!)
       navigate(`/vehicles/${vehicleId}/components`)
     } finally {
       setDeleting(false)
@@ -172,10 +174,8 @@ export default function ComponentDetail() {
     : 100
   const yearsPercent = component.expectedLifetimeYears && component.installationDate
     ? (() => {
-        const installDate = Temporal.PlainDate.from(component.installationDate);
-        const today = Temporal.Now.plainDateISO();
-
-        const ageYears = installDate.until(today, { largestUnit: 'years' }).years;
+        // eslint-disable-next-line react-hooks/purity
+        const ageYears = (Date.now() - new Date(component.installationDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
         return Math.max(0, Math.min(100, 100 - (ageYears / component.expectedLifetimeYears) * 100))
       })()
     : 100
@@ -317,7 +317,7 @@ export default function ComponentDetail() {
           <div>
             {history.map((item, idx) => (
               <div
-                key={item.maintenanceRecordComponentId}
+                key={item.maintenanceRecordComponentId as number}
                 style={{ borderBottom: idx === history.length - 1 ? 'none' : undefined }}
               >
                 <HistoryItem

@@ -5,20 +5,22 @@ import { getPredictionsByVehicle, updatePrediction } from '../../api/predictions
 import { LoadingState, ErrorState, EmptyState } from '../../components/shared/AsyncStates'
 import { PREDICTION_STATUS_ORDER } from '../../constants/enums'
 
-export default function VehiclePredictions({ vehicleId }) {
+import type { Prediction } from '../../types'
+
+export default function VehiclePredictions({ vehicleId }: { vehicleId: string | undefined }) {
   const navigate = useNavigate()
-  const [predictions, setPredictions] = useState([])
+  const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getPredictionsByVehicle(vehicleId)
+    getPredictionsByVehicle(vehicleId!)
       .then((res) => setPredictions(res.data))
       .catch(() => setError('Failed to load predictions.'))
       .finally(() => setLoading(false))
   }, [vehicleId])
 
-  const handleIgnore = async (prediction) => {
+  const handleIgnore = async (prediction: Prediction) => {
     try {
       await updatePrediction(prediction.predictionId, { status: 'Ignored' })
       setPredictions((prev) =>
@@ -29,7 +31,7 @@ export default function VehiclePredictions({ vehicleId }) {
     }
   }
 
-  const handleDone = async (prediction) => {
+  const handleDone = async (prediction: Prediction) => {
     const completedAt = new Date().toISOString()
 
     try {
@@ -44,8 +46,9 @@ export default function VehiclePredictions({ vehicleId }) {
     }
   }
 
+  const order = PREDICTION_STATUS_ORDER as Record<string, number>
   const sorted = [...predictions].sort(
-    (a, b) => (PREDICTION_STATUS_ORDER[a.status] ?? 0) - (PREDICTION_STATUS_ORDER[b.status] ?? 0)
+    (a, b) => (order[a.status] ?? 0) - (order[b.status] ?? 0)
   )
 
   return (
@@ -74,8 +77,8 @@ export default function VehiclePredictions({ vehicleId }) {
         <PredictionCard
           key={prediction.predictionId}
           prediction={prediction}
-          onDone={prediction.status === 'Active' ? handleDone : null}
-          onIgnore={prediction.status === 'Active' ? handleIgnore : null}
+          onDone={prediction.status === 'Active' ? handleDone : undefined}
+          onIgnore={prediction.status === 'Active' ? handleIgnore : undefined}
           onClick={() => navigate(`/vehicles/${vehicleId}/predictions/${prediction.predictionId}`)}
         />
       ))}

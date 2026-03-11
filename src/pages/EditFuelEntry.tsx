@@ -11,13 +11,15 @@ import { FUEL_TYPES } from '../constants/enums'
 export default function EditFuelEntry() {
   const { vehicleId, entryId } = useParams()
   const navigate = useNavigate()
-  const [form, setForm] = useState(null)
+  interface FuelForm { fuelType: string; refillDate: string; amount: string | number; cost: string | number; mileage: string | number; notes: string }
+
+  const [form, setForm] = useState<FuelForm | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getFuelById(entryId).then((res) => {
+    getFuelById(entryId!).then((res) => {
       const e = res.data
       setForm({
         fuelType: e.fuelType ?? '', // should be already chosen, if it was created as petrol then it should stay petrol by default, unless user wants to change it
@@ -30,29 +32,31 @@ export default function EditFuelEntry() {
     }).finally(() => setLoading(false))
   }, [entryId])
 
-  const set = (field) => (e) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((prev) => prev ? { ...prev, [field]: e.target.value } : prev)
 
   const pricePerL = form?.amount && form?.cost
-    ? (parseFloat(form.cost) / parseFloat(form.amount)).toFixed(2)
+    ? (parseFloat(String(form.cost)) / parseFloat(String(form.amount))).toFixed(2)
     : null
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!form) return
     setError(null)
     setSaving(true)
     try {
-      await updateFuelEntry(entryId, {
+      await updateFuelEntry(entryId!, {
         fuelType: form.fuelType,
         refillDate: new Date(form.refillDate).toISOString(),
-        amount: parseFloat(form.amount),
-        cost: parseFloat(form.cost),
-        mileage: form.mileage ? Number.parseInt(form.mileage, 10) : 0,
+        amount: parseFloat(String(form.amount)),
+        cost: parseFloat(String(form.cost)),
+        mileage: form.mileage ? Number.parseInt(String(form.mileage), 10) : 0,
         notes: form.notes || null,
       })
       navigate(`/vehicles/${vehicleId}/fuel/${entryId}`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to update entry.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to update entry.')
     } finally {
       setSaving(false)
     }
@@ -60,11 +64,11 @@ export default function EditFuelEntry() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this fuel entry?')) return
-    await deleteFuelEntry(entryId)
+    await deleteFuelEntry(entryId!)
     navigate(`/vehicles/${vehicleId}/fuel`)
   }
 
-  if (loading) return <PageShell><LoadingText /></PageShell>
+  if (loading || !form) return <PageShell><LoadingText /></PageShell>
 
   return (
     <PageShell>

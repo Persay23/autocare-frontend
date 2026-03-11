@@ -11,10 +11,10 @@ export default function Login() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -23,8 +23,8 @@ export default function Login() {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      const details = err.response?.data?.message ? ` (${err.response.data.message})` : ''
-      setError(`Invalid email or password.${details}`)
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ? `Invalid email or password. (${msg})` : 'Invalid email or password.')
     } finally {
       setLoading(false)
     }

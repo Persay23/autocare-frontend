@@ -6,6 +6,7 @@ import DetailRow from '../components/shared/DetailRow'
 import ActionButton from '../components/shared/ActionButton'
 import PredictionCard from '../components/predictions/PredictionCard'
 import { getPredictionById, updatePrediction } from '../api/predictions'
+import type { Prediction } from '../types'
 import { LoadingText } from '../components/shared/AsyncStates'
 import { backBtnStyle } from '../styles/pageStyles'
 import { formatEnumLabel } from '../utils/formatters'
@@ -14,24 +15,24 @@ import { toConfidencePercent } from '../utils/predictions'
 export default function PredictionDetail() {
   const { vehicleId, predictionId } = useParams()
   const navigate = useNavigate()
-  const [prediction, setPrediction] = useState(null)
+  const [prediction, setPrediction] = useState<Prediction | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getPredictionById(predictionId)
-      .then((res) => setPrediction(res.data))
+    getPredictionById(predictionId!)
+      .then((res) => setPrediction(res.data as Prediction))
       .finally(() => setLoading(false))
   }, [predictionId])
 
   const handleDone = async () => {
     const completedAt = new Date().toISOString()
-    await updatePrediction(predictionId, { status: 'Completed', completedAt })
-    setPrediction((prev) => ({ ...prev, status: 'Completed', completedAt }))
+    await updatePrediction(predictionId!, { status: 'Completed', completedAt })
+    setPrediction((prev) => prev ? { ...prev, status: 'Completed', completedAt } : prev)
   }
 
   const handleIgnore = async () => {
-    await updatePrediction(predictionId, { status: 'Ignored' })
-    setPrediction((prev) => ({ ...prev, status: 'Ignored' }))
+    await updatePrediction(predictionId!, { status: 'Ignored' })
+    setPrediction((prev) => prev ? { ...prev, status: 'Ignored' } : prev)
   }
 
   if (loading) return <PageShell><LoadingText /></PageShell>
@@ -50,8 +51,8 @@ export default function PredictionDetail() {
 
       <PredictionCard
         prediction={prediction}
-        onDone={prediction.status === 'Active' ? handleDone : null}
-        onIgnore={prediction.status === 'Active' ? handleIgnore : null}
+        onDone={prediction.status === 'Active' ? () => handleDone() : undefined}
+        onIgnore={prediction.status === 'Active' ? () => handleIgnore() : undefined}
       />
 
       <div

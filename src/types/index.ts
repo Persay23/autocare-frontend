@@ -26,13 +26,17 @@ export interface Vehicle {
 /** Raw component entity — returned by CRUD endpoints */
 export interface VehicleComponent {
   componentId: number
+  vehicleComponentId?: number      // alias used by some endpoints
   vehicleId: number
   componentType: string
   name?: string
+  vehicleComponentName?: string    // alias used by some endpoints
   brand?: string
+  vehicleComponentBrand?: string   // alias used by some endpoints
   installationDate: string
   lastServiceDate?: string
   state: string
+  currentState?: string            // alias used by health/detail endpoints
   notes?: string
   currentMileage: number
   expectedLifetimeKm: number
@@ -50,12 +54,14 @@ export interface ComponentHealth {
   yearsLifetimePercent: number
   remainingKm: number
   status: string
+  installationDate?: string        // included in some health responses
 }
 
 export interface MaintenanceRecordComponent {
   maintenanceRecordComponentId: number
   maintenanceRecordId: number
   componentId: number
+  componentType?: string           // included in detailed record responses
   changeType: string
   workDescription?: string
   oldState?: string
@@ -78,6 +84,8 @@ export interface MaintenanceRecord {
   vehicleId: number
   serviceDate: string
   serviceType: string
+  serviceName?: string             // added in backend during development
+  mileage?: number                 // added in backend during development
   cost: number
   description?: string
   maintenanceRecordComponents?: MaintenanceRecordComponent[]
@@ -86,8 +94,10 @@ export interface MaintenanceRecord {
 /** LiquidEntry from the backend — fuel-only after the refactor */
 export interface FuelEntry {
   liquidEntryId: number
+  fuelEntryId?: number             // alias used by some endpoints
   vehicleId: number
-  liquidType: string
+  liquidType?: string
+  fuelType?: string                // renamed from liquidType after refactor
   refillDate: string
   amount: number
   cost: number

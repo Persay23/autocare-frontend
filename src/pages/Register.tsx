@@ -16,13 +16,13 @@ export default function Register() {
     drivingExperience: '',
     gender: 'Male',
   })
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const set = (field) => (e) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -38,9 +38,10 @@ export default function Register() {
       })
       navigate('/login')
     } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string; 0?: { description?: string } } } }
       setError(
-        err.response?.data?.message ||
-          err.response?.data?.[0]?.description ||
+        axiosErr.response?.data?.message ||
+          axiosErr.response?.data?.[0]?.description ||
           'Registration failed. Please try again.'
       )
     } finally {

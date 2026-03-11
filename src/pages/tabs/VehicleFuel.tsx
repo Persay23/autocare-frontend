@@ -5,14 +5,16 @@ import { getFuelByVehicle } from '../../api/fuel'
 import { LoadingState, ErrorState, EmptyState } from '../../components/shared/AsyncStates'
 import VehicleComponents from './VehicleComponents'
 
-export default function VehicleFuel({ vehicleId }) {
+import type { FuelEntry } from '../../types'
+
+export default function VehicleFuel({ vehicleId }: { vehicleId: string | undefined }) {
   const navigate = useNavigate()
-  const [entries, setEntries] = useState([])
+  const [entries, setEntries] = useState<FuelEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getFuelByVehicle(vehicleId)
+    getFuelByVehicle(vehicleId!)
       .then((res) => setEntries(res.data))
       .catch(() => setError('Failed to load fuel entries.'))
       .finally(() => setLoading(false))

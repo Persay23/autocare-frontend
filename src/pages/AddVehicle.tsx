@@ -24,12 +24,12 @@ export default function AddVehicle() {
     vehicleType: 'Sedan',
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const set = (field) => (e) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -42,7 +42,8 @@ export default function AddVehicle() {
       })
       navigate('/carpark')
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to add vehicle.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to add vehicle.')
     } finally {
       setLoading(false)
     }

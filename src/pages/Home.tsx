@@ -11,19 +11,18 @@ import { getVehicles } from '../api/vehicles'
 import { getComponentHealth } from '../api/components'
 import { getVehicleTimeline } from '../api/timeline'
 import logo from '../assets/Logo.png'
-import {getUserTimeline } from '../api/timeline' // one call to get all recent events across vehicles instead of n + 1 calls for health + timeline per vehicle
+import type { Vehicle, ComponentHealth, TimelineEvent } from '../types'
 
 export default function Home() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const [vehicles, setVehicles] = useState([])
-  const [healthMap, setHealthMap] = useState({})
-  const [recentEvents, setRecentEvents] = useState([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [healthMap, setHealthMap] = useState<Record<number, ComponentHealth[]>>({})
+  const [recentEvents, setRecentEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
 
-
-  const handleEventClick = (event) => {
+  const handleEventClick = (event: TimelineEvent) => {
     if (!event.vehicleId || !event.relatedId) return
     if (event.type === 'Maintenance' || event.type === 'Service') {
       navigate(`/vehicles/${event.vehicleId}/records/${event.relatedId}`)
@@ -43,7 +42,7 @@ export default function Home() {
         // Fetch health + timeline for all vehicles in parallel
         const [healthResults, timelineResults] = await Promise.all([
           Promise.allSettled(
-            list.map((v) =>
+            list.map((v: Vehicle) =>
               getComponentHealth(v.vehicleId).then((r) => ({
                 vehicleId: v.vehicleId,
                 health: r.data,
@@ -51,7 +50,7 @@ export default function Home() {
             )
           ),
           Promise.allSettled(
-            list.map((v) =>
+            list.map((v: Vehicle) =>
               getVehicleTimeline(v.vehicleId).then((r) => ({
                 vehicleId: v.vehicleId,
                 vehicleName: `${v.brand} ${v.model}`,
@@ -62,24 +61,25 @@ export default function Home() {
         ])
 
         // Build health map
-        const map = {}
+        const map: Record<number, ComponentHealth[]> = {}
         healthResults.forEach((r) => {
           if (r.status === 'fulfilled') {
-            map[r.value.vehicleId] = r.value.health
+            map[r.value.vehicleId] = r.value.health as ComponentHealth[]
           }
         })
         setHealthMap(map)
 
         // Merge and sort timeline events — take last 5
-        const allEvents = timelineResults
+        const allEvents: TimelineEvent[] = timelineResults
           .filter((r) => r.status === 'fulfilled')
-          .flatMap(({ value }) =>
-            (Array.isArray(value.events) ? value.events : []).map((e) => ({
+          .flatMap((r) => {
+            const { value } = r as PromiseFulfilledResult<{ vehicleId: number; vehicleName: string; events: unknown }>
+            return (Array.isArray(value.events) ? value.events as TimelineEvent[] : []).map((e) => ({
               ...e,
               vehicleName: value.vehicleName,
             }))
-          )
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          })
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
           .slice(0, 5)
 
         setRecentEvents(allEvents)

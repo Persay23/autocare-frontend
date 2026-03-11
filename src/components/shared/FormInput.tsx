@@ -45,7 +45,7 @@ export default function FormInput({
       {isSelect ? (
         <select
           value={value}
-          onChange={onChange as React.ChangeEventHandler<HTMLSelectElement>}
+          onChange={onChange as (e: ChangeEvent<HTMLSelectElement>) => void}
           required={required}
           style={inputStyle}
           onFocus={onFocus}
@@ -57,7 +57,7 @@ export default function FormInput({
         <input
           type={type}
           value={value}
-          onChange={onChange as React.ChangeEventHandler<HTMLInputElement>}
+          onChange={onChange as (e: ChangeEvent<HTMLInputElement>) => void}
           placeholder={placeholder}
           required={required}
           min={min}

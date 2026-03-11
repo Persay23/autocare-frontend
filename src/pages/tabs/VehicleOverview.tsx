@@ -7,7 +7,11 @@ import { PRESET_GROUPS } from '../../data/presetComponents'
 import { COMPONENT_DEFAULTS } from '../../data/componentDefaults'
 import { formatEnumLabel } from '../../utils/formatters'
 
-function HealthRing({ health }) {
+import type { Vehicle, ComponentHealth, MonthlyCostSummary } from '../../types'
+
+interface BarChartPoint { label: string; maintenance: number; fuel: number }
+
+function HealthRing({ health }: { health: ComponentHealth[] | null | undefined }) {
   if (!health?.length) {
     return (
       <div
@@ -28,7 +32,7 @@ function HealthRing({ health }) {
   }
 
   const total = health.length
-  const counts = health.reduce((acc, component) => {
+  const counts = health.reduce<Record<string, number>>((acc, component) => {
     acc[component.currentState] = (acc[component.currentState] ?? 0) + 1
     return acc
   }, {})
@@ -92,10 +96,10 @@ function HealthRing({ health }) {
   )
 }
 
-export default function VehicleOverview({ vehicle, health, onComponentsCreated }) {
-  const [costData, setCostData] = useState([])
+export default function VehicleOverview({ vehicle, health, onComponentsCreated }: { vehicle: Vehicle; health: ComponentHealth[] | null; onComponentsCreated?: () => void }) {
+  const [costData, setCostData] = useState<BarChartPoint[]>([])
   const [settingUp, setSettingUp] = useState(false)
-  const [selectedPresets, setSelectedPresets] = useState([])
+  const [selectedPresets, setSelectedPresets] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -107,12 +111,12 @@ export default function VehicleOverview({ vehicle, health, onComponentsCreated }
 
     getVehicleCostSummary(vehicle.vehicleId, from.toISOString(), to.toISOString())
       .then((res) => {
-        const raw = Array.isArray(res.data) ? res.data : []
+        const raw: MonthlyCostSummary[] = Array.isArray(res.data) ? res.data : []
         setCostData(
           raw.map((item) => ({
-            label: new Date(item.month ?? item.date).toLocaleDateString('en-GB', { month: 'short' }),
-            maintenance: item.maintenanceCost ?? item.maintenance ?? 0,
-            fuel: item.fuelCost ?? item.fuel ?? 0,
+            label: new Date(item.month).toLocaleDateString('en-GB', { month: 'short' }),
+            maintenance: item.maintenanceCost ?? 0,
+            fuel: item.fuelCost ?? 0,
           }))
         )
       })
@@ -132,12 +136,12 @@ export default function VehicleOverview({ vehicle, health, onComponentsCreated }
     Perfect: '#38bdf8',
   }
 
-  const counts = (health ?? []).reduce((acc, component) => {
+  const counts = (health ?? []).reduce<Record<string, number>>((acc, component) => {
     acc[component.currentState] = (acc[component.currentState] ?? 0) + 1
     return acc
   }, {})
 
-  const togglePreset = (type) => {
+  const togglePreset = (type: string) => {
     setSelectedPresets((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 

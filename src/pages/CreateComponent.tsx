@@ -24,32 +24,33 @@ export default function CreateComponent() {
     notes: '',
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const set = (field) => (e) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     const defaults = COMPONENT_DEFAULTS[form.componentType] ?? COMPONENT_DEFAULTS.Other
     try {
       await createComponent({
-        vehicleId: Number.parseInt(vehicleId, 10),
+        vehicleId: Number.parseInt(vehicleId!, 10),
         componentType: form.componentType,
         vehicleComponentName: form.vehicleComponentName || null,
         vehicleComponentBrand: form.vehicleComponentBrand || null,
         state: form.state,
         installationDate: new Date(form.installationDate).toISOString(),
         currentMileage: form.currentMileage ? Number.parseInt(form.currentMileage, 10) : 0,
-        expectedLifetimeKm: defaults.lifetimeKm,       // ← auto from defaults
-        expectedLifetimeYears: defaults.lifetimeYears,  // ← auto from defaults
+        expectedLifetimeKm: defaults.lifetimeKm,
+        expectedLifetimeYears: defaults.lifetimeYears,
         notes: form.notes || null,
-    })
+      })
       navigate(`/vehicles/${vehicleId}/components`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to add component.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to add component.')
     } finally {
       setLoading(false)
     }

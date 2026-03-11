@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Routes, Route, /*useLocation*/ } from 'react-router-dom'
+import { useParams, useNavigate, Routes, Route } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import PageShell from '../components/layout/PageShell'
 import TabBar from '../components/shared/TabBar'
@@ -10,6 +10,7 @@ import VehiclePredictions from './tabs/VehiclePredictions'
 import { getVehicleById } from '../api/vehicles'
 import { getComponentHealth } from '../api/components'
 import { LoadingState } from '../components/shared/AsyncStates'
+import type { Vehicle, ComponentHealth } from '../types'
 
 
 
@@ -26,18 +27,18 @@ export default function VehicleDetail() {
   const basePath = `/vehicles/${vehicleId}`
   const navigate = useNavigate()
 
-  const [vehicle, setVehicle] = useState(null)
-  const [health, setHealth] = useState([])
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null)
+  const [health, setHealth] = useState<ComponentHealth[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     Promise.all([
-      getVehicleById(vehicleId),
-      getComponentHealth(vehicleId).catch(() => ({ data: [] })),
+      getVehicleById(vehicleId!),
+      getComponentHealth(vehicleId!).catch(() => ({ data: [] as ComponentHealth[] })),
     ]).then(([vehicleRes, healthRes]) => {
-      setVehicle(vehicleRes.data)
-      setHealth(healthRes.data ?? [])
+      setVehicle(vehicleRes.data as Vehicle)
+      setHealth((healthRes.data ?? []) as ComponentHealth[])
     }).finally(() => setLoading(false))
   }, [vehicleId, refreshKey])
 

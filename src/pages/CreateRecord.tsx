@@ -12,6 +12,7 @@ import { backBtnStyle, labelStyle } from '../styles/pageStyles'
 import { SERVICE_TYPES, COMPONENT_STATES } from '../constants/enums'
 import { COMPONENT_ICONS } from '../constants/icons'
 import { formatEnumLabel } from '../utils/formatters'
+import type { Vehicle, VehicleComponent } from '../types'
 
 // Adjust to match your ComponentChangeType enum on the backend
 const CHANGE_TYPES = ['Replaced', 'Repaired', 'Inspected', 'Adjusted', 'Cleaned', 'Other']
@@ -31,12 +32,15 @@ function makeEmptyEntry() {
   }
 }
 
-function componentLabel(comp) {
+type ComponentEntry = { changeType: string; workDescription: string; newState: string; laborCost: string; partsCost: string; otherCost: string }
+type SelectedComponent = { comp: VehicleComponent; entry: ComponentEntry }
+
+function componentLabel(comp: VehicleComponent): string {
   const type = formatEnumLabel(comp.componentType)
   return comp.name ? `${type} · ${comp.name}` : type
 }
 
-function entryTotal(entry) {
+function entryTotal(entry: ComponentEntry): number {
   return (
     (parseFloat(entry.laborCost) || 0) +
     (parseFloat(entry.partsCost) || 0) +
@@ -48,8 +52,8 @@ function entryTotal(entry) {
 // ComponentPicker
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ComponentPicker({ allComponents, addedIds, onAdd, onClose }) {
-  const available = allComponents.filter((c) => !addedIds.has(c.vehicleComponentId))
+function ComponentPicker({ allComponents, addedIds, onAdd, onClose }: { allComponents: VehicleComponent[]; addedIds: Set<number | undefined>; onAdd: (c: VehicleComponent) => void; onClose: () => void }) {
+  const available = allComponents.filter((c) => !addedIds.has(c.vehicleComponentId ?? c.componentId))
 
   return (
     <div
@@ -108,7 +112,7 @@ function ComponentPicker({ allComponents, addedIds, onAdd, onClose }) {
           const isLast = idx === available.length - 1
           return (
             <button
-              key={comp.vehicleComponentId}
+              key={comp.vehicleComponentId ?? comp.componentId}
               type="button"
               onClick={() => { onAdd(comp); onClose() }}
               style={{
@@ -148,11 +152,11 @@ function ComponentPicker({ allComponents, addedIds, onAdd, onClose }) {
 // ComponentRow
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ComponentRow({ comp, entry, onChange, onRemove }) {
+function ComponentRow({ comp, entry, onChange, onRemove }: { comp: VehicleComponent; entry: ComponentEntry; onChange: (field: string, value: string) => void; onRemove: () => void }) {
   const [expanded, setExpanded] = useState(true)
   const total = entryTotal(entry)
   const icon = COMPONENT_ICONS[comp.componentType] ?? '🔧'
-  const set = (field) => (e) => onChange(field, e.target.value)
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(field, e.target.value)
 
   return (
     <div
@@ -252,7 +256,7 @@ function ComponentRow({ comp, entry, onChange, onRemove }) {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={entry[field]}
+                    value={(entry as Record<string, string>)[field]}
                     onChange={set(field)}
                     placeholder="0.00"
                     style={{ ...inputStyle, width: '100%' }}
@@ -298,8 +302,8 @@ export default function CreateRecord() {
   const { vehicleId: vehicleIdFromUrl } = useParams()
   const navigate = useNavigate()
 
-  const [vehicles, setVehicles] = useState([])
-  const [allComponents, setAllComponents] = useState([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [allComponents, setAllComponents] = useState<VehicleComponent[]>([])
   const [form, setForm] = useState({
     vehicleId: vehicleIdFromUrl ?? '',
     serviceType: '',
@@ -308,10 +312,10 @@ export default function CreateRecord() {
     cost: '',
     description: '',
   })
-  const [selectedComponents, setSelectedComponents] = useState([])
+  const [selectedComponents, setSelectedComponents] = useState<SelectedComponent[]>([])
   const [showPicker, setShowPicker] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   const targetVehicleId = vehicleIdFromUrl ?? form.vehicleId
 
@@ -348,17 +352,17 @@ export default function CreateRecord() {
 
   // const hasMoreComponents = allComponents.length > 0 && addedIds.size < allComponents.length
 
-  const set = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }))
-  const addComponent = (comp) => setSelectedComponents((p) => [...p, { comp, entry: makeEmptyEntry() }])
-  const removeComponent = (id) => setSelectedComponents((p) => p.filter((s) => s.comp.vehicleComponentId !== id))
-  const updateEntry = (id, field, value) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p) => ({ ...p, [field]: e.target.value }))
+  const addComponent = (comp: VehicleComponent) => setSelectedComponents((p) => [...p, { comp, entry: makeEmptyEntry() }])
+  const removeComponent = (id: number | undefined) => setSelectedComponents((p) => p.filter((s) => (s.comp.vehicleComponentId ?? s.comp.componentId) !== id))
+  const updateEntry = (id: number | undefined, field: string, value: string) =>
     setSelectedComponents((p) =>
-      p.map((s) => s.comp.vehicleComponentId === id ? { ...s, entry: { ...s.entry, [field]: value } } : s)
+      p.map((s) => (s.comp.vehicleComponentId ?? s.comp.componentId) === id ? { ...s, entry: { ...s.entry, [field]: value } } : s)
     )
 
   const backPath = targetVehicleId ? `/vehicles/${targetVehicleId}/records` : '/'
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!targetVehicleId) { setError('Please select a vehicle.'); return }
 
@@ -389,7 +393,7 @@ export default function CreateRecord() {
         const compTotal = entryTotal(entry)
         await createRecordComponent({
           maintenanceRecordId: newRecordId,
-          componentId: comp.vehicleComponentId,
+          componentId: comp.vehicleComponentId ?? comp.componentId,
           componentChangeType: entry.changeType,
           workDescription: entry.workDescription || null,
           newState: entry.newState,
@@ -402,7 +406,8 @@ export default function CreateRecord() {
 
       navigate(`/vehicles/${targetVehicleId}/records`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to save record.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to save record.')
     } finally {
       setLoading(false)
     }
@@ -537,11 +542,11 @@ export default function CreateRecord() {
 
           {selectedComponents.map(({ comp, entry }) => (
             <ComponentRow
-              key={comp.vehicleComponentId}
+              key={comp.vehicleComponentId ?? comp.componentId}
               comp={comp}
               entry={entry}
-              onChange={(field, value) => updateEntry(comp.vehicleComponentId, field, value)}
-              onRemove={() => removeComponent(comp.vehicleComponentId)}
+              onChange={(field, value) => updateEntry(comp.vehicleComponentId ?? comp.componentId, field, value)}
+              onRemove={() => removeComponent(comp.vehicleComponentId ?? comp.componentId)}
             />
           ))}
 

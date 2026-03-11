@@ -8,11 +8,12 @@ import { ErrorBanner } from '../components/shared/AsyncStates'
 import { backBtnStyle } from '../styles/pageStyles'
 import FormInput from '../components/shared/FormInput'
 import { FUEL_TYPES } from '../constants/enums'
+import type { Vehicle } from '../types'
 
 export default function CreateFuelEntry() {
   const { vehicleId: vehicleIdFromUrl } = useParams()
   const navigate = useNavigate()
-  const [vehicles, setVehicles] = useState([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [form, setForm] = useState({
     vehicleId: vehicleIdFromUrl ?? '',
     fuelType: '',
@@ -23,7 +24,7 @@ export default function CreateFuelEntry() {
     notes: '',
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (vehicleIdFromUrl) return
@@ -39,7 +40,7 @@ export default function CreateFuelEntry() {
       .catch(() => setError('Failed to load vehicles.'))
   }, [vehicleIdFromUrl])
 
-  const set = (field) => (e) =>
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const targetVehicleId = vehicleIdFromUrl ?? form.vehicleId
@@ -48,7 +49,7 @@ export default function CreateFuelEntry() {
   const pricePerL =
     form.amount && form.cost ? (Number.parseFloat(form.cost) / Number.parseFloat(form.amount)).toFixed(2) : null
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!targetVehicleId) {
       setError('Please select a vehicle.')
@@ -69,7 +70,8 @@ export default function CreateFuelEntry() {
       })
       navigate(`/vehicles/${targetVehicleId}/fuel`)
     } catch (err) {
-      setError(err.response?.data?.message ?? 'Failed to save fuel entry.')
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(msg ?? 'Failed to save fuel entry.')
     } finally {
       setLoading(false)
     }
