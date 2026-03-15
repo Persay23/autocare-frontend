@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 
 // Auth screens (public)
@@ -29,8 +28,7 @@ import PredictionDetail from './pages/PredictionDetail'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
         <Routes>
           {/* Public — accessible without being logged in */}
           <Route path="/login" element={<Login />} />
@@ -74,7 +72,6 @@ export default function App() {
           {/* Catch-all — anything unknown goes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    </BrowserRouter>
   )
 }
