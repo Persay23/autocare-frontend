@@ -38,7 +38,7 @@ export default function RecordDetail() {
   if (loading) return <PageShell><LoadingText /></PageShell>
   if (!record) return <PageShell><div style={{ padding: 22, color: 'var(--text2)' }}>Record not found.</div></PageShell>
 
-  const icon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
+  const RecordIcon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
   const formattedType = formatEnumLabel(record.serviceType)
   const formattedDate = record.serviceDate
     ? new Date(record.serviceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -62,10 +62,9 @@ export default function RecordDetail() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 22,
           }}
         >
-          {icon}
+          <RecordIcon sx={{ fontSize: 24, color: 'var(--accent)' }} />
         </div>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>{formattedType}</div>

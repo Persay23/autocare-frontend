@@ -199,10 +199,10 @@ export default function ComponentDetail() {
           style={{
             width: 52, height: 52, borderRadius: 14, flexShrink: 0,
             background: 'var(--surface3)', border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          {COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other}
+          {(() => { const CI = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other; return <CI sx={{ fontSize: 28, color: 'var(--accent3)' }} /> })()}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>

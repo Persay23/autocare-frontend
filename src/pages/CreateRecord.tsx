@@ -108,7 +108,7 @@ function ComponentPicker({ allComponents, addedIds, onAdd, onClose }: { allCompo
         </div>
       ) : (
         available.map((comp, idx) => {
-          const icon = COMPONENT_ICONS[comp.componentType] ?? '🔧'
+          const CompIcon = COMPONENT_ICONS[comp.componentType] ?? COMPONENT_ICONS.Other
           const isLast = idx === available.length - 1
           return (
             <button
@@ -128,7 +128,7 @@ function ComponentPicker({ allComponents, addedIds, onAdd, onClose }: { allCompo
                 textAlign: 'left',
               }}
             >
-              <span style={{ fontSize: 17, flexShrink: 0 }}>{icon}</span>
+              <CompIcon sx={{ fontSize: 20, flexShrink: 0, color: 'var(--accent3)' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
                   {componentLabel(comp)}
@@ -155,7 +155,7 @@ function ComponentPicker({ allComponents, addedIds, onAdd, onClose }: { allCompo
 function ComponentRow({ comp, entry, onChange, onRemove }: { comp: VehicleComponent; entry: ComponentEntry; onChange: (field: string, value: string) => void; onRemove: () => void }) {
   const [expanded, setExpanded] = useState(true)
   const total = entryTotal(entry)
-  const icon = COMPONENT_ICONS[comp.componentType] ?? '🔧'
+  const CompIcon = COMPONENT_ICONS[comp.componentType] ?? COMPONENT_ICONS.Other
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(field, e.target.value)
 
   return (
@@ -173,7 +173,7 @@ function ComponentRow({ comp, entry, onChange, onRemove }: { comp: VehicleCompon
         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}
         onClick={() => setExpanded((p) => !p)}
       >
-        <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+        <CompIcon sx={{ fontSize: 20, flexShrink: 0, color: 'var(--accent3)' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
             {componentLabel(comp)}

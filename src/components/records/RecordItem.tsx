@@ -3,7 +3,7 @@ import { formatEnumLabel } from '../../utils/formatters'
 import type { MaintenanceRecord } from '../../types'
 
 export default function RecordItem({ record, onClick }: { record: MaintenanceRecord; onClick: () => void }) {
-  const icon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
+  const RecordIcon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
 
   return (
     <div
@@ -27,11 +27,10 @@ export default function RecordItem({ record, onClick }: { record: MaintenanceRec
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 14,
           flexShrink: 0,
         }}
       >
-        {icon}
+        <RecordIcon sx={{ fontSize: 16, color: 'var(--accent)' }} />
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>

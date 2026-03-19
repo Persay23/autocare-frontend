@@ -146,7 +146,7 @@ export interface AuthContextValue {
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 
 export interface FabOption {
-  icon: string
+  icon: import('react').ElementType
   label: string
   path?: string
   onPress?: () => void

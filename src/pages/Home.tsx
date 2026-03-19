@@ -12,6 +12,8 @@ import { getComponentHealth } from '../api/components'
 import { getVehicleTimeline } from '../api/timeline'
 import logo from '../assets/Logo.png'
 import type { Vehicle, ComponentHealth, TimelineEvent } from '../types'
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
+import BuildIcon from '@mui/icons-material/Build'
 
 export default function Home() {
   const { user } = useAuth()
@@ -95,11 +97,10 @@ export default function Home() {
     c.currentState === 'Repair'
   )
 
-  // FAB options — one fuel + one record per vehicle
   const fabOptions = [
-  { icon: '⛽', label: 'Log Fuel Refill',        path: '/fuel/new'    },
-  { icon: '🔧', label: 'New Maintenance Record',  path: '/records/new' },
-]
+    { icon: LocalGasStationIcon, label: 'Log Fuel Refill',       path: '/fuel/new'    },
+    { icon: BuildIcon,           label: 'New Maintenance Record', path: '/records/new' },
+  ]
 
   const initials = user?.name
     ?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) ?? '?'

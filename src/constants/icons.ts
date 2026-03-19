@@ -1,29 +1,56 @@
-export const COMPONENT_ICONS: Record<string, string> = {
-  Engine: '\u{1F527}',
-  Transmission: '\u2699',
-  Brakes: '\u{1F6DE}',
-  Suspension: '\u{1F529}',
-  Electrical: '\u{1F50B}',
-  Cooling: '\u{1F321}\uFE0F',
-  Fuel: '\u26FD',
-  Exhaust: '\u{1F4A8}',
-  Tyres: '\u{1F6DE}',
-  Body: '\u{1F697}',
-  Other: '\u{1F527}',
+import type { ElementType } from 'react'
+
+import BuildIcon from '@mui/icons-material/Build'
+import SettingsIcon from '@mui/icons-material/Settings'
+import AdjustIcon from '@mui/icons-material/Adjust'
+import DeviceHubIcon from '@mui/icons-material/DeviceHub'
+import ElectricBoltIcon from '@mui/icons-material/ElectricBolt'
+import AcUnitIcon from '@mui/icons-material/AcUnit'
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
+import AirIcon from '@mui/icons-material/Air'
+import TireRepairIcon from '@mui/icons-material/TireRepair'
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
+import OpacityIcon from '@mui/icons-material/Opacity'
+import AssignmentIcon from '@mui/icons-material/Assignment'
+
+// Icon component type — all MUI SvgIcon components satisfy this
+export type IconComponent = ElementType
+
+export const COMPONENT_ICONS: Record<string, IconComponent> = {
+  Engine:       BuildIcon,
+  Transmission: SettingsIcon,
+  Brakes:       AdjustIcon,
+  Suspension:   DeviceHubIcon,
+  Electrical:   ElectricBoltIcon,
+  Cooling:      AcUnitIcon,
+  Fuel:         LocalGasStationIcon,
+  Exhaust:      AirIcon,
+  Tyres:        TireRepairIcon,
+  Body:         DirectionsCarIcon,
+  Other:        BuildIcon,
 }
 
-export const SERVICE_ICONS: Record<string, string> = {
-  OilChange: '\u{1F6E2}',
-  Engine: '\u{1F527}',
-  Transmission: '\u2699',
-  Brakes: '\u{1F6DE}',
-  Suspension: '\u{1F529}',
-  Electrical: '\u{1F50C}',
-  Cooling: '\u{1F321}\uFE0F',
-  Fuel: '\u26FD',
-  Exhaust: '\u{1F4A8}',
-  Tyres: '\u{1F6DE}',
-  Body: '\u{1F697}',
-  Inspection: '\u{1F4CB}',
-  Other: '\u{1F527}',
+export const SERVICE_ICONS: Record<string, IconComponent> = {
+  OilChange:    OpacityIcon,
+  Engine:       BuildIcon,
+  Transmission: SettingsIcon,
+  Brakes:       AdjustIcon,
+  Suspension:   DeviceHubIcon,
+  Electrical:   ElectricBoltIcon,
+  Cooling:      AcUnitIcon,
+  Fuel:         LocalGasStationIcon,
+  Exhaust:      AirIcon,
+  Tyres:        TireRepairIcon,
+  Body:         DirectionsCarIcon,
+  Inspection:   AssignmentIcon,
+  Other:        BuildIcon,
+}
+
+// Timeline event dot icons
+export const TIMELINE_ICONS: Record<string, IconComponent> = {
+  Maintenance: BuildIcon,
+  Service:     BuildIcon,
+  Fuel:        LocalGasStationIcon,
+  Liquid:      OpacityIcon,
+  Other:       AssignmentIcon,
 }

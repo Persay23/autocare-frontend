@@ -1,4 +1,6 @@
+import type { ElementType } from 'react'
 import type { TimelineEvent } from '../../types'
+import { TIMELINE_ICONS } from '../../constants/icons'
 
 interface TimelineItemProps {
   event: TimelineEvent
@@ -7,15 +9,17 @@ interface TimelineItemProps {
   isLast?: boolean
 }
 
-const DOT_STYLES: Record<string, { borderColor: string; bg: string; icon: string }> = {
-  Maintenance: { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)', icon: '🔧' },
-  Fuel:        { borderColor: 'var(--accent2)', bg: 'rgba(79,143,255,0.12)',  icon: '⛽' },
-  Liquid:      { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)', icon: '💧' },
-  Other:       { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)', icon: '📋' },
+const DOT_STYLES: Record<string, { borderColor: string; bg: string }> = {
+  Maintenance: { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
+  Service:     { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
+  Fuel:        { borderColor: 'var(--accent2)', bg: 'rgba(79,143,255,0.12)' },
+  Liquid:      { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
+  Other:       { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
 }
 
 export default function TimelineItem({ event, showVehicle, onClick, isLast }: TimelineItemProps) {
   const dot = DOT_STYLES[event.type] ?? DOT_STYLES.Other
+  const DotIcon: ElementType = TIMELINE_ICONS[event.type] ?? TIMELINE_ICONS.Other
 
   const formattedDate = event.date
     ? new Date(event.date).toLocaleDateString('en-GB', {
@@ -34,12 +38,12 @@ export default function TimelineItem({ event, showVehicle, onClick, isLast }: Ti
             background: dot.bg,
             border: `2px solid ${dot.borderColor}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, flexShrink: 0,
+            flexShrink: 0,
             cursor: onClick ? 'pointer' : 'default',
             zIndex: 1,
           }}
         >
-          {dot.icon}
+          <DotIcon sx={{ fontSize: 13, color: dot.borderColor }} />
         </div>
         {!isLast && (
           <div style={{

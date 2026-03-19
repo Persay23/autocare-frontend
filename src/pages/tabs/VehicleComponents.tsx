@@ -85,9 +85,7 @@ export default function VehicleComponents({ vehicleId }: { vehicleId: string | u
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>
-                    {COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other}
-                  </span>
+                  {(() => { const CI = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other; return <CI sx={{ fontSize: 20, flexShrink: 0, color: 'var(--accent3)' }} /> })()}
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                       {component.vehicleComponentName || formatEnumLabel(component.componentType)}

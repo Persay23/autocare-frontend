@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AddIcon from '@mui/icons-material/Add'
+import CloseIcon from '@mui/icons-material/Close'
 import type { FabOption } from '../../types'
 
 interface FloatingAddButtonProps {
@@ -74,8 +76,8 @@ export default function FloatingAddButton({ options, onPress }: FloatingAddButto
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface3)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
               >
-                <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>
-                  {opt.icon}
+                <span style={{ width: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {(() => { const I = opt.icon; return <I sx={{ fontSize: 18 }} /> })()}
                 </span>
                 {opt.label}
               </button>
@@ -99,7 +101,6 @@ export default function FloatingAddButton({ options, onPress }: FloatingAddButto
             : 'linear-gradient(135deg, var(--accent), var(--accent2))',
           border: 'none',
           cursor: 'pointer',
-          fontSize: 22,
           color: '#fff',
           display: 'flex',
           alignItems: 'center',
@@ -107,10 +108,9 @@ export default function FloatingAddButton({ options, onPress }: FloatingAddButto
           boxShadow: '0 4px 20px rgba(108,99,255,0.5)',
           zIndex: 100,
           transition: 'background 0.2s, transform 0.2s',
-          transform: open ? 'rotate(45deg)' : 'none',
         }}
       >
-        +
+        {open ? <CloseIcon sx={{ fontSize: 22 }} /> : <AddIcon sx={{ fontSize: 22 }} />}
       </button>
     </>
   )
