@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createVehicle } from '@/features/vehicles/api'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
 import { backBtnStyle, labelStyle } from '@/styles/pageStyles'
@@ -13,6 +14,7 @@ import {
 
 export default function AddVehicle() {
   const navigate = useNavigate()
+  const invalidate = useVehiclesStore((s) => s.invalidate)
   const [form, setForm] = useState({
     brand: '',
     model: '',
@@ -40,6 +42,7 @@ export default function AddVehicle() {
         yearOfProduction: Number.parseInt(form.yearOfProduction, 10),
         mileage: Number.parseInt(form.mileage, 10),
       })
+      invalidate()
       navigate('/carpark')
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message

@@ -7,11 +7,10 @@ import StatusPill from '@/ui/StatusPill'
 import TimelineItem from '@/ui/TimelineItem'
 import FloatingAddButton from '@/ui/FloatingAddButton'
 import { useAuth } from '@/features/auth/useAuth'
-import { getVehicles } from '@/features/vehicles/api'
-import { getComponentHealth } from '@/features/components/api'
-import { getVehicleTimeline } from '@/features/timeline/api'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
+import { getUserTimeline } from '@/features/timeline/api'
 import logo from '../assets/Logo.png'
-import type { Vehicle, ComponentHealth, TimelineEvent } from '@/lib/types'
+import type { TimelineEvent } from '@/lib/types'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import BuildIcon from '@mui/icons-material/Build'
 
@@ -19,10 +18,11 @@ export default function Home() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [healthMap, setHealthMap] = useState<Record<number, ComponentHealth[]>>({})
+  const { vehicles, healthMap, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
   const [recentEvents, setRecentEvents] = useState<TimelineEvent[]>([])
-  const [loading, setLoading] = useState(true)
+  const [timelineLoading, setTimelineLoading] = useState(true)
+
+  const loading = vehiclesLoading || timelineLoading
 
   const handleEventClick = (event: TimelineEvent) => {
     if (!event.vehicleId || !event.relatedId) return
@@ -33,61 +33,22 @@ export default function Home() {
     }
   }
 
+  // Vehicles + health: served from cache after first load
+  useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
-
+  // Timeline: single cross-vehicle call instead of N per-vehicle calls
   useEffect(() => {
-    getVehicles()
-      .then(async (res) => {
-        const list = res.data
-        setVehicles(list)
-
-        // Fetch health + timeline for all vehicles in parallel
-        const [healthResults, timelineResults] = await Promise.all([
-          Promise.allSettled(
-            list.map((v: Vehicle) =>
-              getComponentHealth(v.vehicleId).then((r) => ({
-                vehicleId: v.vehicleId,
-                health: r.data,
-              }))
-            )
-          ),
-          Promise.allSettled(
-            list.map((v: Vehicle) =>
-              getVehicleTimeline(v.vehicleId).then((r) => ({
-                vehicleId: v.vehicleId,
-                vehicleName: `${v.brand} ${v.model}`,
-                events: r.data,
-              }))
-            )
-          ),
-        ])
-
-        // Build health map
-        const map: Record<number, ComponentHealth[]> = {}
-        healthResults.forEach((r) => {
-          if (r.status === 'fulfilled') {
-            map[r.value.vehicleId] = r.value.health as ComponentHealth[]
-          }
-        })
-        setHealthMap(map)
-
-        // Merge and sort timeline events — take last 5
-        const allEvents: TimelineEvent[] = timelineResults
-          .filter((r) => r.status === 'fulfilled')
-          .flatMap((r) => {
-            const { value } = r as PromiseFulfilledResult<{ vehicleId: number; vehicleName: string; events: unknown }>
-            return (Array.isArray(value.events) ? value.events as TimelineEvent[] : []).map((e) => ({
-              ...e,
-              vehicleName: value.vehicleName,
-            }))
-          })
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          .slice(0, 5)
-
-        setRecentEvents(allEvents)
+    getUserTimeline()
+      .then((res) => {
+        const events: TimelineEvent[] = Array.isArray(res.data) ? res.data : []
+        setRecentEvents(
+          events
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5)
+        )
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => setTimelineLoading(false))
   }, [])
 
   // All components across all vehicles flattened

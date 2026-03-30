@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import ActionButton from '@/ui/ActionButton'
 import { createComponent } from '@/features/components/api'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import FormInput from '@/ui/FormInput'
@@ -13,6 +14,7 @@ import { formatEnumLabel } from '@/lib/formatters'
 export default function CreateComponent() {
   const { vehicleId } = useParams()
   const navigate = useNavigate()
+  const invalidate = useVehiclesStore((s) => s.invalidate)
 
   const [form, setForm] = useState({
     componentType: '',
@@ -47,6 +49,7 @@ export default function CreateComponent() {
         expectedLifetimeYears: defaults.lifetimeYears,
         notes: form.notes || null,
       })
+      invalidate()
       navigate(`/vehicles/${vehicleId}/components`)
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message

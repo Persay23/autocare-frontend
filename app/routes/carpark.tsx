@@ -1,45 +1,15 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import VehicleCard from '@/features/vehicles/VehicleCard'
-import { getVehicles } from '@/features/vehicles/api'
-import { getComponentHealth } from '@/features/components/api'
-import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
-import type { Vehicle, ComponentHealth } from '@/lib/types'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
+import { LoadingState, EmptyState } from '@/ui/AsyncStates'
 
 export default function CarPark() {
   const navigate = useNavigate()
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [healthMap, setHealthMap] = useState<Record<number, ComponentHealth[]>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { vehicles, healthMap, loading, fetch: fetchVehicles } = useVehiclesStore()
 
-  useEffect(() => {
-    getVehicles()
-      .then(async (res) => {
-        const list: Vehicle[] = res.data
-        setVehicles(list)
-
-        const healthResults = await Promise.allSettled(
-          list.map((vehicle) =>
-            getComponentHealth(vehicle.vehicleId).then((r) => ({
-              vehicleId: vehicle.vehicleId,
-              health: r.data as ComponentHealth[],
-            }))
-          )
-        )
-
-        const map: Record<number, ComponentHealth[]> = {}
-        healthResults.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            map[result.value.vehicleId] = result.value.health
-          }
-        })
-        setHealthMap(map)
-      })
-      .catch(() => setError('Failed to load vehicles.'))
-      .finally(() => setLoading(false))
-  }, [])
+  useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
   return (
     <PageShell>
@@ -74,13 +44,12 @@ export default function CarPark() {
       </div>
 
       {loading && <LoadingState />}
-      {error && <ErrorState message={error} margin="0 22px" />}
 
-      {!loading && !error && vehicles.length === 0 && (
+      {!loading && vehicles.length === 0 && (
         <EmptyState icon="🚗" message="No vehicles yet - add your first car to get started" />
       )}
 
-      {!loading && !error && vehicles.map((vehicle) => (
+      {!loading && vehicles.map((vehicle) => (
         <VehicleCard key={vehicle.vehicleId} vehicle={vehicle} health={healthMap[vehicle.vehicleId]} />
       ))}
     </PageShell>
