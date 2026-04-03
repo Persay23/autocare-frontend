@@ -3,58 +3,36 @@ import PageShell from '@/ui/layout/PageShell'
 import FilterChips from '@/ui/FilterChips'
 import StatCard from '@/ui/StatCard'
 import BarChart from '@/ui/BarChart'
-import { getVehicles } from '@/features/vehicles/api'
-import { getVehicleCostSummary } from '@/features/expenses/api'
-import type { Vehicle, MonthlyCostSummary } from '@/lib/types'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
+import { useExpensesStore } from '@/features/expenses/expensesStore'
 
 export default function Expenses() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [summaries, setSummaries] = useState<Record<number, MonthlyCostSummary[]>>({})
-  const [loading, setLoading] = useState(true)
 
-  // Load all vehicles once
-  useEffect(() => {
-    getVehicles()
-      .then((res) => setVehicles(res.data))
-      .catch(() => {})
-  }, [])
+  const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
+  const { summaries, loading: summariesLoading, fetchAll } = useExpensesStore()
 
-  // Load cost summary when selection changes
+  const loading = vehiclesLoading || summariesLoading
+
+  // Vehicles from shared cache — 0 calls if Home was visited first
+  useEffect(() => { fetchVehicles() }, [fetchVehicles])
+
+  // Fetch all vehicle summaries at once — filter chips are then instant (client-side only)
   useEffect(() => {
     if (!vehicles.length) return
+    fetchAll(vehicles.map((v) => v.vehicleId))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length])
 
-    const to = new Date()
-    const from = new Date()
-    from.setMonth(from.getMonth() - 6)
+  // Filter summaries client-side — no API call when switching vehicle chips
+  const activeSummaries = selectedId
+    ? (summaries[selectedId] ?? [])
+    : Object.values(summaries).flat()
 
-    const targets = selectedId
-      ? vehicles.filter((v) => v.vehicleId === selectedId)
-      : vehicles
-
-    Promise.allSettled(
-      targets.map((v) =>
-        getVehicleCostSummary(v.vehicleId, from.toISOString(), to.toISOString())
-          .then((res) => ({ vehicleId: v.vehicleId, data: res.data as MonthlyCostSummary[] }))
-      )
-    ).then((results) => {
-      const map: Record<number, MonthlyCostSummary[]> = {}
-      results.forEach((r) => {
-        if (r.status === 'fulfilled') {
-          map[r.value.vehicleId] = r.value.data
-        }
-      })
-      setSummaries(map)
-    }).finally(() => setLoading(false))
-  }, [vehicles, selectedId])
-
-  // Merge summaries into chart data
   const chartData = (() => {
-    const allData: MonthlyCostSummary[] = Object.values(summaries).flat()
-    if (!allData.length) return []
-
+    if (!activeSummaries.length) return []
     const byMonth: Record<string, { label: string; maintenance: number; fuel: number }> = {}
-    allData.forEach((d) => {
+    activeSummaries.forEach((d) => {
       const label = new Date(d.month).toLocaleDateString('en-GB', { month: 'short' })
       if (!byMonth[label]) byMonth[label] = { label, maintenance: 0, fuel: 0 }
       byMonth[label].maintenance += d.maintenanceCost ?? 0
@@ -63,14 +41,8 @@ export default function Expenses() {
     return Object.values(byMonth).slice(-6)
   })()
 
-  const maintenanceCost = Object.values(summaries)
-  .flat()
-  .reduce((sum, d) => sum + (d.maintenanceCost ?? 0), 0)
-
-  const fuelCost = Object.values(summaries)
-    .flat()
-    .reduce((sum, d) => sum + (d.fuelCost ?? 0), 0)
-
+  const maintenanceCost = activeSummaries.reduce((sum, d) => sum + (d.maintenanceCost ?? 0), 0)
+  const fuelCost = activeSummaries.reduce((sum, d) => sum + (d.fuelCost ?? 0), 0)
   const allTimeCost = maintenanceCost + fuelCost
   
   return (

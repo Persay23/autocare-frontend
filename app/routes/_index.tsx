@@ -8,9 +8,9 @@ import TimelineItem from '@/ui/TimelineItem'
 import FloatingAddButton from '@/ui/FloatingAddButton'
 import { useAuth } from '@/features/auth/useAuth'
 import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
-import { getUserTimeline } from '@/features/timeline/api'
+import { getVehicleTimeline } from '@/features/timeline/api'
 import logo from '../assets/Logo.png'
-import type { TimelineEvent } from '@/lib/types'
+import type { Vehicle, TimelineEvent } from '@/lib/types'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import BuildIcon from '@mui/icons-material/Build'
 
@@ -36,20 +36,33 @@ export default function Home() {
   // Vehicles + health: served from cache after first load
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
-  // Timeline: single cross-vehicle call instead of N per-vehicle calls
+  // Timeline: runs once when vehicles are ready (vehicles list from cache, no extra call)
   useEffect(() => {
-    getUserTimeline()
-      .then((res) => {
-        const events: TimelineEvent[] = Array.isArray(res.data) ? res.data : []
-        setRecentEvents(
-          events
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 5)
-        )
-      })
-      .catch(() => {})
-      .finally(() => setTimelineLoading(false))
-  }, [])
+    if (!vehicles.length) return
+
+    Promise.allSettled(
+      vehicles.map((v: Vehicle) =>
+        getVehicleTimeline(v.vehicleId).then((r) => ({
+          vehicleId: v.vehicleId,
+          vehicleName: `${v.brand} ${v.model}`,
+          events: r.data as TimelineEvent[],
+        }))
+      )
+    ).then((results) => {
+      const allEvents: TimelineEvent[] = results
+        .filter((r) => r.status === 'fulfilled')
+        .flatMap((r) => {
+          const { value } = r as PromiseFulfilledResult<{ vehicleId: number; vehicleName: string; events: TimelineEvent[] }>
+          return value.events.map((e) => ({ ...e, vehicleName: value.vehicleName }))
+        })
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5)
+      setRecentEvents(allEvents)
+    })
+    .catch(() => {})
+    .finally(() => setTimelineLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length])
 
   // All components across all vehicles flattened
   const allComponents = Object.values(healthMap).flat()
