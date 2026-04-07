@@ -39,6 +39,7 @@ export default function Home() {
   // Timeline: runs once when vehicles are ready (vehicles list from cache, no extra call)
   useEffect(() => {
     if (!vehicles.length) return
+    let cancelled = false
 
     Promise.allSettled(
       vehicles.map((v: Vehicle) =>
@@ -49,6 +50,7 @@ export default function Home() {
         }))
       )
     ).then((results) => {
+      if (cancelled) return
       const allEvents: TimelineEvent[] = results
         .filter((r) => r.status === 'fulfilled')
         .flatMap((r) => {
@@ -60,7 +62,8 @@ export default function Home() {
       setRecentEvents(allEvents)
     })
     .catch(() => {})
-    .finally(() => setTimelineLoading(false))
+    .finally(() => { if (!cancelled) setTimelineLoading(false) })
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicles.length])
 

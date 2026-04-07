@@ -32,13 +32,18 @@ export default function VehicleLayout() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
     Promise.all([
       getVehicleById(vehicleId!),
       getComponentHealth(vehicleId!).catch(() => ({ data: [] as ComponentHealth[] })),
     ]).then(([vehicleRes, healthRes]) => {
+      if (cancelled) return
       setVehicle(vehicleRes.data as Vehicle)
       setHealth((healthRes.data ?? []) as ComponentHealth[])
-    }).finally(() => setLoading(false))
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
   }, [vehicleId, refreshKey])
 
   if (loading) return <PageShell><LoadingState /></PageShell>
