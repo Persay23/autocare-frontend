@@ -2,69 +2,47 @@
 import PageShell from '@/ui/layout/PageShell'
 import FilterChips from '@/ui/FilterChips'
 import TimelineItem from '@/ui/TimelineItem'
-import { getVehicles } from '@/features/vehicles/api'
-import { getVehicleTimeline } from '@/features/timeline/api'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
+import { useTimelineStore } from '@/features/timeline/timelineStore'
 import { useNavigate } from 'react-router-dom'
-import type { Vehicle, TimelineEvent } from '@/lib/types'
+import type { TimelineEvent } from '@/lib/types'
 
 export default function Timeline() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [events, setEvents] = useState<TimelineEvent[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getVehicles()
-      .then((res) => setVehicles(res.data))
-      .catch(() => {})
-  }, [])
-
-
   const navigate = useNavigate()
+
+  const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
+  const { eventsByVehicle, loading: timelineLoading, fetchAll } = useTimelineStore()
+
+  const loading = vehiclesLoading || timelineLoading
+
+  // Vehicles from shared cache — 0 calls if Home/CarPark was visited first
+  useEffect(() => { fetchVehicles() }, [fetchVehicles])
+
+  // Fetch all vehicle timelines once — filter chips are then instant
+  useEffect(() => {
+    if (!vehicles.length) return
+    let cancelled = false
+    fetchAll(vehicles).then(() => { if (cancelled) return })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length])
+
+  // Filter client-side — no API call when switching between vehicles
+  const events: TimelineEvent[] = (
+    selectedId
+      ? (eventsByVehicle[selectedId] ?? [])
+      : Object.values(eventsByVehicle).flat()
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const handleEventClick = (event: TimelineEvent) => {
     if (!event.vehicleId || !event.relatedId) return
-
     if (event.type === 'Maintenance' || event.type === 'Service') {
       navigate(`/vehicles/${event.vehicleId}/records/${event.relatedId}`)
     } else if (event.type === 'Fuel') {
       navigate(`/vehicles/${event.vehicleId}/fuel/${event.relatedId}`)
     }
   }
-
-
-  useEffect(() => {
-    if (!vehicles.length) return
-
-
-    const targets = selectedId
-      ? vehicles.filter((v) => v.vehicleId === selectedId)
-      : vehicles
-
-    Promise.allSettled(
-      targets.map((v) =>
-        getVehicleTimeline(v.vehicleId).then((res) => ({
-          vehicleId: v.vehicleId,
-          vehicleName: `${v.brand} ${v.model}`,
-          events: res.data as TimelineEvent[],
-        }))
-      )
-    ).then((results) => {
-      const allEvents: TimelineEvent[] = results
-        .filter((r) => r.status === 'fulfilled')
-        .flatMap((r) => {
-          const { value } = r as PromiseFulfilledResult<{ vehicleId: number; vehicleName: string; events: TimelineEvent[] }>
-          return (Array.isArray(value.events) ? value.events : []).map((e) => ({
-            ...e,
-            vehicleName: value.vehicleName,
-            vehicleId: value.vehicleId,
-          }))
-        })
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-      setEvents(allEvents)
-    }).finally(() => setLoading(false))
-  }, [vehicles, selectedId])
 
   return (
     <PageShell>
