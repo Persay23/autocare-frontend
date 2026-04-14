@@ -4,8 +4,12 @@ import PageShell from '@/ui/layout/PageShell'
 import ActionButton from '@/ui/ActionButton'
 import { createFuelEntry } from '@/features/fuel/api'
 import { getVehicles } from '@/features/vehicles/api'
+import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
+import { dedupFetch } from '@/lib/dedup'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
+import VehicleLabel from '@/ui/VehicleLabel'
+import SmartFillButton from '@/ui/SmartFillButton'
 import FormInput from '@/ui/FormInput'
 import { FUEL_TYPES } from '@/lib/enums'
 import type { Vehicle } from '@/lib/types'
@@ -14,6 +18,7 @@ export default function CreateFuelEntry() {
   const { vehicleId: vehicleIdFromUrl } = useParams()
   const navigate = useNavigate()
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const storeVehicles = useVehiclesStore((s) => s.vehicles)
   const [form, setForm] = useState({
     vehicleId: vehicleIdFromUrl ?? '',
     fuelType: '',
@@ -28,22 +33,31 @@ export default function CreateFuelEntry() {
 
   useEffect(() => {
     if (vehicleIdFromUrl) return
-
-    getVehicles()
+    let cancelled = false
+    dedupFetch('vehicles-list', () => getVehicles())
       .then((res) => {
+        if (cancelled) return
         const list = Array.isArray(res.data) ? res.data : []
         setVehicles(list)
-        if (list.length === 1) {
-          setForm((prev) => ({ ...prev, vehicleId: String(list[0].vehicleId) }))
-        }
+        if (list.length === 1) setForm((prev) => ({ ...prev, vehicleId: String(list[0].vehicleId) }))
       })
-      .catch(() => setError('Failed to load vehicles.'))
+      .catch(() => { if (!cancelled) setError('Failed to load vehicles.') })
+    return () => { cancelled = true }
   }, [vehicleIdFromUrl])
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const targetVehicleId = vehicleIdFromUrl ?? form.vehicleId
+
+  const allVehicles = vehicles.length > 0 ? vehicles : storeVehicles
+  const vehicle = allVehicles.find((v) => v.vehicleId === parseInt(targetVehicleId || '0', 10))
+  const minMileage = vehicle && vehicle.mileage > 0 ? vehicle.mileage : undefined
+  const mileageError =
+    minMileage !== undefined && form.mileage !== '' && parseInt(form.mileage, 10) < minMileage
+      ? `Min ${minMileage.toLocaleString()} km · current vehicle odometer`
+      : undefined
+
   const backPath = targetVehicleId ? `/vehicles/${targetVehicleId}/fuel` : '/'
 
   const pricePerL =
@@ -55,6 +69,8 @@ export default function CreateFuelEntry() {
       setError('Please select a vehicle.')
       return
     }
+
+    if (mileageError) { setError(mileageError); return }
 
     setError(null)
     setLoading(true)
@@ -82,6 +98,7 @@ export default function CreateFuelEntry() {
       <button onClick={() => navigate(backPath)} style={backBtnStyle}>
         {targetVehicleId ? '<- Fuel' : '<- Home'}
       </button>
+      <VehicleLabel vehicleId={vehicleIdFromUrl} />
       <div style={{ padding: '0 22px 20px' }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Log Fuel Refill</div>
       </div>
@@ -90,6 +107,8 @@ export default function CreateFuelEntry() {
         {error && <ErrorBanner message={error} />}
 
         <div style={{ padding: '0 22px' }}>
+          <SmartFillButton />
+
           {!vehicleIdFromUrl && (
             <FormInput label="Vehicle" value={form.vehicleId} onChange={set('vehicleId')} required>
               <option value="">Select a vehicle...</option>
@@ -145,7 +164,8 @@ export default function CreateFuelEntry() {
             value={form.mileage}
             onChange={set('mileage')}
             placeholder="187300"
-            min="0"
+            min={minMileage ?? 0}
+            error={mileageError}
           />
           <FormInput
             label="Station / Notes"

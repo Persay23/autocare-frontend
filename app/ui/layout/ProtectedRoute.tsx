@@ -1,10 +1,19 @@
-﻿import { Navigate, Outlet } from 'react-router-dom'
+import { useState } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/auth/useAuth'
+import DrivingSurveySheet from '@/ui/DrivingSurveySheet'
+import { loadProfile, saveProfile, markSkipped, hasSkipped } from '@/lib/drivingProfile'
+import type { DrivingProfile } from '@/lib/drivingProfile'
 
 export default function ProtectedRoute() {
   const { user, loading } = useAuth()
 
-  // Still waiting for /auth/me — don't redirect yet
+  // Lazy initial state — only reads localStorage once user is known
+  const [showSurvey, setShowSurvey] = useState(() => {
+    if (!user) return false
+    return !loadProfile(user.id) && !hasSkipped(user.id)
+  })
+
   if (loading) {
     return (
       <div style={{
@@ -22,11 +31,29 @@ export default function ProtectedRoute() {
     )
   }
 
-  // /auth/me returned 401 or failed — user is not logged in
   if (!user) {
     return <Navigate to="/login" replace />
   }
 
-  // User is authenticated — render whatever route matched
-  return <Outlet />
+  const handleComplete = (profile: DrivingProfile) => {
+    saveProfile(user.id, profile)
+    setShowSurvey(false)
+  }
+
+  const handleSkip = () => {
+    markSkipped(user.id)
+    setShowSurvey(false)
+  }
+
+  return (
+    <>
+      <Outlet />
+      {showSurvey && (
+        <DrivingSurveySheet
+          onComplete={handleComplete}
+          onSkip={handleSkip}
+        />
+      )}
+    </>
+  )
 }

@@ -1,28 +1,27 @@
 import { type RouteObject } from 'react-router-dom'
 import ProtectedRoute from '@/ui/layout/ProtectedRoute'
 
-import AddVehicle      from './vehicles.new'
-import VehicleLayout   from './vehicles._layout'
+import AddVehicle      from './vehicles/create'
+import VehicleLayout   from './vehicles/layout'
+import VehicleOverview from './vehicles/overview'
 
-import VehicleOverview    from './vehicles.$vehicleId._index'
-import VehicleRecords     from './vehicles.$vehicleId.records'
-import VehicleComponents  from './vehicles.$vehicleId.components'
-import VehicleFuel        from './vehicles.$vehicleId.fuel'
-import VehiclePredictions from './vehicles.$vehicleId.predictions'
+import VehicleRecords from './records/list'
+import CreateRecord   from './records/create'
+import RecordDetail   from './records/detail'
+import EditRecord     from './records/edit'
 
-import RecordDetail   from './vehicles.$vehicleId.records.$recordId'
-import CreateRecord   from './vehicles.$vehicleId.records.new'
-import EditRecord     from './vehicles.$vehicleId.records.$recordId.edit'
+import VehicleComponents from './components/list'
+import CreateComponent   from './components/create'
+import ComponentDetail   from './components/detail'
+import EditComponent     from './components/edit'
 
-import ComponentDetail  from './vehicles.$vehicleId.components.$componentId'
-import CreateComponent  from './vehicles.$vehicleId.components.new'
-import EditComponent    from './vehicles.$vehicleId.components.$componentId.edit'
+import VehicleFuel   from './fuel/list'
+import CreateFuel    from './fuel/create'
+import FuelDetail    from './fuel/detail'
+import EditFuel      from './fuel/edit'
 
-import FuelDetail       from './vehicles.$vehicleId.fuel.$entryId'
-import CreateFuelEntry  from './vehicles.$vehicleId.fuel.new'
-import EditFuelEntry    from './vehicles.$vehicleId.fuel.$entryId.edit'
-
-import PredictionDetail from './vehicles.$vehicleId.predictions.$predictionId'
+import VehiclePredictions from './predictions/list'
+import PredictionDetail   from './predictions/detail'
 
 export const vehicleRoutes: RouteObject[] = [
   {
@@ -30,34 +29,34 @@ export const vehicleRoutes: RouteObject[] = [
     children: [
       { path: '/vehicles/new', element: <AddVehicle /> },
 
-      // ── Record routes (must come before the wildcard vehicle layout) ──
-      { path: '/vehicles/:vehicleId/records/new',              element: <CreateRecord /> },
-      { path: '/vehicles/:vehicleId/records/:recordId',        element: <RecordDetail /> },
-      { path: '/vehicles/:vehicleId/records/:recordId/edit',   element: <EditRecord /> },
+      // ── Records ───────────────────────────────────────────────────────
+      { path: '/vehicles/:vehicleId/records/new',            element: <CreateRecord /> },
+      { path: '/vehicles/:vehicleId/records/:recordId',      element: <RecordDetail /> },
+      { path: '/vehicles/:vehicleId/records/:recordId/edit', element: <EditRecord /> },
 
-      // ── Component routes ──────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/components/new',                     element: <CreateComponent /> },
-      { path: '/vehicles/:vehicleId/components/:componentId',            element: <ComponentDetail /> },
-      { path: '/vehicles/:vehicleId/components/:componentId/edit',       element: <EditComponent /> },
+      // ── Components ────────────────────────────────────────────────────
+      { path: '/vehicles/:vehicleId/components/new',                 element: <CreateComponent /> },
+      { path: '/vehicles/:vehicleId/components/:componentId',        element: <ComponentDetail /> },
+      { path: '/vehicles/:vehicleId/components/:componentId/edit',   element: <EditComponent /> },
 
-      // ── Fuel routes ───────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/fuel/new',              element: <CreateFuelEntry /> },
-      { path: '/vehicles/:vehicleId/fuel/:entryId',         element: <FuelDetail /> },
-      { path: '/vehicles/:vehicleId/fuel/:entryId/edit',    element: <EditFuelEntry /> },
+      // ── Fuel ──────────────────────────────────────────────────────────
+      { path: '/vehicles/:vehicleId/fuel/new',           element: <CreateFuel /> },
+      { path: '/vehicles/:vehicleId/fuel/:entryId',      element: <FuelDetail /> },
+      { path: '/vehicles/:vehicleId/fuel/:entryId/edit', element: <EditFuel /> },
 
-      // ── Prediction routes ─────────────────────────────────────────────
+      // ── Predictions ───────────────────────────────────────────────────
       { path: '/vehicles/:vehicleId/predictions/:predictionId', element: <PredictionDetail /> },
 
-      // ── Vehicle detail with tabs (layout wraps the tab content) ───────
+      // ── Vehicle tabs (layout wraps tab content) ───────────────────────
       {
         path: '/vehicles/:vehicleId/*',
         element: <VehicleLayout />,
         children: [
-          { index: true,              element: <VehicleOverview /> },
-          { path: 'records',          element: <VehicleRecords /> },
-          { path: 'components',       element: <VehicleComponents /> },
-          { path: 'fuel',             element: <VehicleFuel /> },
-          { path: 'predictions',      element: <VehiclePredictions /> },
+          { index: true,         element: <VehicleOverview /> },
+          { path: 'records',     element: <VehicleRecords /> },
+          { path: 'components',  element: <VehicleComponents /> },
+          { path: 'fuel',        element: <VehicleFuel /> },
+          { path: 'predictions', element: <VehiclePredictions /> },
         ],
       },
     ],

@@ -14,9 +14,7 @@ export default function TabBar({ tabs, basePath }: TabBarProps) {
   return (
     <div style={{
       display: 'flex',
-      overflowX: 'auto',
       borderBottom: '1px solid var(--border2)',
-      padding: '0 22px',
       scrollbarWidth: 'none',
     }}>
       {tabs.map((tab) => (
@@ -25,7 +23,9 @@ export default function TabBar({ tabs, basePath }: TabBarProps) {
           to={tab.to === '' ? basePath : `${basePath}/${tab.to}`}
           end={tab.to === ''}
           style={({ isActive }) => ({
-            padding: '8px 10px',
+            flex: 1,
+            textAlign: 'center',
+            padding: '8px 4px',
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 9,
             color: isActive ? 'var(--accent)' : 'var(--text3)',
@@ -34,7 +34,7 @@ export default function TabBar({ tabs, basePath }: TabBarProps) {
             whiteSpace: 'nowrap',
             textDecoration: 'none',
             textTransform: 'uppercase',
-            letterSpacing: '0.1em',
+            letterSpacing: '0.08em',
             transition: 'color 0.15s',
           })}
         >

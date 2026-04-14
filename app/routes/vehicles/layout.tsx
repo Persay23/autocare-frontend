@@ -5,6 +5,7 @@ import TabBar from '@/ui/layout/TabBar'
 import { LoadingState } from '@/ui/AsyncStates'
 import { getVehicleById } from '@/features/vehicles/api'
 import { getComponentHealth } from '@/features/components/api'
+import { dedupFetch } from '@/lib/dedup'
 import type { Vehicle, ComponentHealth } from '@/lib/types'
 
 export interface VehicleLayoutContext {
@@ -34,8 +35,9 @@ export default function VehicleLayout() {
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      getVehicleById(vehicleId!),
-      getComponentHealth(vehicleId!).catch(() => ({ data: [] as ComponentHealth[] })),
+      dedupFetch(`vehicle-${vehicleId}-${refreshKey}`, () => getVehicleById(vehicleId!)),
+      dedupFetch(`health-${vehicleId}-${refreshKey}`, () => getComponentHealth(vehicleId!))
+        .catch(() => ({ data: [] as ComponentHealth[] })),
     ]).then(([vehicleRes, healthRes]) => {
       if (cancelled) return
       setVehicle(vehicleRes.data as Vehicle)

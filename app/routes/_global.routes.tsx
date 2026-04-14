@@ -1,24 +1,26 @@
 import { type RouteObject } from 'react-router-dom'
 import ProtectedRoute from '@/ui/layout/ProtectedRoute'
-import Home       from './_index'
-import CarPark    from './carpark'
-import Expenses   from './expenses'
-import Timeline   from './timeline'
-import Profile    from './profile'
-import CreateRecord     from './records.new'
-import CreateFuelEntry  from './fuel.new'
+import Home           from './global/home'
+import CarPark        from './global/carpark'
+import Expenses       from './global/expenses/list'
+import CreateExpense  from './global/expenses/create'
+import Timeline       from './global/timeline'
+import Profile        from './global/profile'
+import CreateRecord    from './records/create'
+import CreateFuelEntry from './fuel/create'
 
 export const globalRoutes: RouteObject[] = [
   {
     element: <ProtectedRoute />,
     children: [
-      { path: '/',          element: <Home /> },
-      { path: '/carpark',   element: <CarPark /> },
-      { path: '/expenses',  element: <Expenses /> },
-      { path: '/timeline',  element: <Timeline /> },
-      { path: '/profile',   element: <Profile /> },
-      { path: '/records/new', element: <CreateRecord /> },
-      { path: '/fuel/new',    element: <CreateFuelEntry /> },
+      { path: '/',             element: <Home /> },
+      { path: '/carpark',      element: <CarPark /> },
+      { path: '/expenses',     element: <Expenses /> },
+      { path: '/expenses/new', element: <CreateExpense /> },
+      { path: '/timeline',     element: <Timeline /> },
+      { path: '/profile',      element: <Profile /> },
+      { path: '/records/new',  element: <CreateRecord /> },
+      { path: '/fuel/new',     element: <CreateFuelEntry /> },
     ],
   },
 ]

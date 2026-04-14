@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import type { ElementType } from 'react'
 import HomeIcon from '@mui/icons-material/Home'
 import BarChartIcon from '@mui/icons-material/BarChart'
@@ -15,6 +15,9 @@ const NAV_ITEMS: { to: string; icon: ElementType; label: string }[] = [
 ]
 
 export default function BottomNav() {
+  const location = useLocation()
+  const onVehicleRoute = location.pathname.startsWith('/vehicles/')
+
   return (
     <nav style={{
       display: 'flex',
@@ -24,6 +27,7 @@ export default function BottomNav() {
     }}>
       {NAV_ITEMS.map((item) => {
         const NavIcon = item.icon
+        const isCarPark = item.to === '/carpark'
         return (
           <NavLink
             key={item.to}
@@ -36,7 +40,7 @@ export default function BottomNav() {
               alignItems: 'center',
               gap: 3,
               fontSize: 8,
-              color: isActive ? 'var(--accent)' : 'var(--text3)',
+              color: (isActive || (isCarPark && onVehicleRoute)) ? 'var(--accent)' : 'var(--text3)',
               textDecoration: 'none',
               fontFamily: "'JetBrains Mono', monospace",
               letterSpacing: '0.05em',
