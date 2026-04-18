@@ -41,6 +41,11 @@ export interface VehicleComponent {
   currentMileage: number
   expectedLifetimeKm: number
   expectedLifetimeYears: number
+  partNumber?: string
+  warrantyKm?: number
+  warrantyDate?: string
+  nextServiceRecommendedKm?: number
+  nextServiceRecommendedDate?: string
 }
 
 /** Computed health data — returned by /vehiclecomponent/vehicle/{id}/health */
@@ -61,20 +66,19 @@ export interface MaintenanceRecordComponent {
   maintenanceRecordComponentId: number
   maintenanceRecordId: number
   componentId: number
-  componentType?: string           // included in detailed record responses
-  changeType: string
+  componentType?: string
+  vehicleComponentName?: string
+  changeType?: string              // alias — some endpoints return this
+  componentChangeType?: string     // actual backend field name
+  customerComplaint?: string
   workDescription?: string
-  oldState?: string
-  newState?: string
-  startedAt?: string
-  completedAt?: string
+  changedParts?: string
   laborCost?: number
   partsCost?: number
   otherCost?: number
   totalCost?: number
-  technicianName?: string
-  vendorOrShop?: string
-  notes?: string
+  expectedLifetimeKm?: number
+  expectedLifetimeYears?: number
   createdAt: string
   updatedAt?: string
 }
@@ -83,11 +87,19 @@ export interface MaintenanceRecord {
   maintenanceRecordId: number
   vehicleId: number
   serviceDate: string
+  startedAt?: string
+  completedAt?: string
+  laborDays?: number
   serviceType: string
-  serviceName?: string             // added in backend during development
-  mileage?: number                 // added in backend during development
+  serviceName: string
+  mileage?: number
   cost: number
   description?: string
+  technicianName?: string
+  vendorOrShop?: string
+  notes?: string
+  invoiceNumber?: string
+  invoiceImageUrl?: string
   maintenanceRecordComponents?: MaintenanceRecordComponent[]
 }
 
@@ -125,6 +137,15 @@ export interface TimelineEvent {
   vehicleId: number
   vehicleName: string
   relatedId?: number
+}
+
+export interface GeneralExpense {
+  expenseId: number
+  vehicleId: number
+  category: string
+  amount: number
+  date: string
+  description?: string
 }
 
 /** Monthly cost breakdown — from /vehicle/{id}/summary/costs */

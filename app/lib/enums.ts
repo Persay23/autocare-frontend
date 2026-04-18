@@ -108,3 +108,18 @@ export const PREDICTION_STATUS_ORDER = {
   Completed: 1,
   Ignored: 2,
 }
+
+export const EXPENSE_CATEGORIES = [
+  'Insurance',
+  'Parking',
+  'Toll',
+  'Washing',
+  'RoadsideAssistance',
+  'Registration',
+  'TechnicalInspection',
+  'Fine',
+  'Tax',
+  'Other',
+] as const
+
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]

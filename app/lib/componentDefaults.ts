@@ -10,4 +10,5 @@ export const COMPONENT_DEFAULTS: Record<string, { lifetimeKm: number; lifetimeYe
   Tyres: { lifetimeKm: 60000, lifetimeYears: 6 },
   Body: { lifetimeKm: 200000, lifetimeYears: 12 },
   Other: { lifetimeKm: 50000, lifetimeYears: 5 },
+  // most common components that people would want to track as oil, oil filter, air filter, spark plug, battery, wipers, tires, brakes, ect
 }
