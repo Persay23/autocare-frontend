@@ -17,3 +17,9 @@ export const deleteRecord = (id: number | string) =>
 
 export const createRecordComponent = (dto: Record<string, unknown>) =>
   api.post('/maintenancerecordcomponent', dto)
+
+export const updateRecordComponent = (id: number | string, dto: Record<string, unknown>) =>
+  api.patch(`/maintenancerecordcomponent/${id}`, dto)
+
+export const deleteRecordComponent = (id: number | string) =>
+  api.delete(`/maintenancerecordcomponent/${id}`)
