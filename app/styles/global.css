@@ -23,6 +23,29 @@
   --yellow:   #fbbf24;
 }
 
+[data-theme="light"] {
+  --bg:       #f0f2fc;
+  --surface:  #ffffff;
+  --surface2: #e8ebf8;
+  --surface3: #dde1f5;
+  --border:   #c8cce8;
+  --border2:  #d4d8f0;
+
+  --accent:   #6c63ff;
+  --accent2:  #4f8fff;
+  --accent3:  #7c5cfa;
+  --accent4:  #0ea5e9;
+
+  --text:     #1c1f3a;
+  --text2:    #50567e;
+  --text3:    #8087b8;
+
+  --green:    #059669;
+  --red:      #dc2626;
+  --orange:   #ea580c;
+  --yellow:   #d97706;
+}
+
 *,
 *::before,
 *::after {
