@@ -25,9 +25,8 @@ export default function StatusPill({ status }: StatusPillProps) {
       color: style.color,
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: 9,
-      fontWeight: 500,
-      textTransform: 'uppercase',
-      letterSpacing: '0.05em',
+      fontWeight: 600,
+      letterSpacing: '0.02em',
       whiteSpace: 'nowrap',
     }}>
       <span style={{

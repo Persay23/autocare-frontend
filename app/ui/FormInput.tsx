@@ -12,6 +12,7 @@ interface FormInputProps {
   max?: string | number
   children?: ReactNode
   hint?: string
+  error?: string
 }
 
 const labelStyle: CSSProperties = {
@@ -35,6 +36,7 @@ export default function FormInput({
   max,
   children,
   hint,
+  error,
 }: FormInputProps) {
   const isSelect = !!children
 
@@ -76,6 +78,16 @@ export default function FormInput({
           marginTop: 4,
         }}>
           {hint}
+        </div>
+      )}
+      {error && (
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 9,
+          color: 'var(--red)',
+          marginTop: 4,
+        }}>
+          {error}
         </div>
       )}
     </div>

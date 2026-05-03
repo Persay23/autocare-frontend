@@ -1,10 +1,12 @@
-﻿import type { ElementType } from 'react'
+import { type ElementType } from 'react'
 import type { TimelineEvent } from '@/lib/types'
 import { TIMELINE_ICONS } from '@/lib/icons'
 
 interface TimelineItemProps {
   event: TimelineEvent
   showVehicle?: boolean
+  showDate?: boolean
+  isDuplicate?: boolean
   onClick?: () => void
   isLast?: boolean
 }
@@ -12,82 +14,127 @@ interface TimelineItemProps {
 const DOT_STYLES: Record<string, { borderColor: string; bg: string }> = {
   Maintenance: { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
   Service:     { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
-  Fuel:        { borderColor: 'var(--accent2)', bg: 'rgba(79,143,255,0.12)' },
+  Fuel:        { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
   Liquid:      { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
   Other:       { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
 }
 
-export default function TimelineItem({ event, showVehicle, onClick, isLast }: TimelineItemProps) {
-  const dot = DOT_STYLES[event.type] ?? DOT_STYLES.Other
+const AMOUNT_COLORS: Record<string, string> = {
+  Maintenance: 'var(--accent)',
+  Service:     'var(--accent)',
+  Fuel:        'var(--accent4)',
+  Liquid:      'var(--accent4)',
+  Other:       'var(--accent3)',
+}
+
+const JUNK = /^(none|nothing|n\/a|test|asas|-{1,3}|\.{1,3}|untitled|unnamed|null|undefined|xxx)$/i
+
+function isJunk(desc: string | null | undefined): boolean {
+  if (!desc || desc.trim() === '') return true
+  return JUNK.test(desc.trim())
+}
+
+export default function TimelineItem({ event, showVehicle, showDate, isDuplicate, onClick, isLast }: TimelineItemProps) {
+  const dot        = DOT_STYLES[event.type]  ?? DOT_STYLES.Other
+  const amountColor = AMOUNT_COLORS[event.type] ?? 'var(--accent3)'
   const DotIcon: ElementType = TIMELINE_ICONS[event.type] ?? TIMELINE_ICONS.Other
 
-  const formattedDate = event.date
-    ? new Date(event.date).toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      })
-    : '—'
+  const junk        = isJunk(event.description)
+  const emptyName   = !event.description || event.description.trim() === ''
+  const displayName = emptyName ? 'Unnamed entry' : event.description
 
   return (
-    <div style={{ display: 'flex', gap: 14, paddingBottom: isLast ? 0 : 15 }}>
-      {/* Left — dot + line */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 28, flexShrink: 0 }}>
-        <div
-          onClick={onClick}
-          style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: dot.bg,
-            border: `2px solid ${dot.borderColor}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            cursor: onClick ? 'pointer' : 'default',
-            zIndex: 1,
-          }}
-        >
-          <DotIcon sx={{ fontSize: 13, color: dot.borderColor }} />
-        </div>
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', gap: 12, paddingBottom: isLast ? 0 : 14,
+        cursor: onClick ? 'pointer' : 'default',
+        opacity: junk && !emptyName ? 0.45 : 1,
+        transition: 'opacity 0.15s',
+      }}
+    >
+      {/* Dot + connector line */}
+      <div style={{ position: 'relative', width: 28, flexShrink: 0 }}>
         {!isLast && (
           <div style={{
-            width: 1,
-            flex: 1,
-            background: 'var(--border)',
-            marginTop: 4,
-            marginBottom: -20, // pulls line into the next item's padding space
+            position: 'absolute',
+            left: '50%', transform: 'translateX(-50%)',
+            top: 28, bottom: -14,
+            width: 2, background: 'var(--border)',
           }} />
         )}
+        <div style={{
+          position: 'relative',
+          width: 28, height: 28, borderRadius: '50%',
+          background: dot.bg, border: `2px solid ${dot.borderColor}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1,
+        }}>
+          <DotIcon sx={{ fontSize: 13, color: dot.borderColor }} />
+        </div>
       </div>
 
-      {/* Right — content */}
-      <div
-        onClick={onClick}
-        style={{
-          flex: 1,
-          paddingTop: 4,
-          cursor: onClick ? 'pointer' : 'default',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 2 }}>
-            {event.description}
-          </div>
+      {/* Content */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        paddingTop: 2,
+      }}>
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+          {/* Title — single line, truncated */}
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 10,
-            color: 'var(--text2)',
+            fontSize: 13, fontWeight: emptyName ? 400 : 500,
+            color: emptyName ? 'var(--text2)' : 'var(--text)',
+            fontStyle: emptyName ? 'italic' : 'normal',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            marginBottom: 2,
           }}>
-            {formattedDate}
-            {showVehicle && event.vehicleName && ` · ${event.vehicleName}`}
+            {displayName}
           </div>
+
+          {/* Subtitle: date + vehicle name */}
+          {(showDate || (showVehicle && event.vehicleName)) && (
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
+              {[
+                showDate && new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+                showVehicle && event.vehicleName,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
+
+          {/* Warning badge for empty description */}
+          {emptyName && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              marginTop: 4, padding: '2px 8px', borderRadius: 999,
+              background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 9, fontWeight: 600, color: 'var(--orange)',
+            }}>
+              ⚠ add a description
+            </div>
+          )}
+
+          {/* Duplicate badge */}
+          {isDuplicate && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              marginTop: 4, padding: '2px 8px', borderRadius: 999,
+              background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 9, fontWeight: 600, color: 'var(--yellow)',
+            }}>
+              ⚠ possible duplicate
+            </div>
+          )}
         </div>
+
+        {/* Amount */}
         {event.cost != null && event.cost > 0 && (
           <div style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--accent3)',
+            fontSize: 13, fontWeight: 600,
+            color: junk ? 'var(--text3)' : amountColor,
             flexShrink: 0,
-            paddingLeft: 8,
           }}>
             {event.cost.toLocaleString()} zł
           </div>
