@@ -12,6 +12,12 @@ import TireRepairIcon from '@mui/icons-material/TireRepair'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
 import OpacityIcon from '@mui/icons-material/Opacity'
 import AssignmentIcon from '@mui/icons-material/Assignment'
+import CreditCardIcon from '@mui/icons-material/CreditCard'
+import SecurityIcon from '@mui/icons-material/Security'
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import LocalParkingIcon from '@mui/icons-material/LocalParking'
+import PaymentIcon from '@mui/icons-material/Payment'
+import GavelIcon from '@mui/icons-material/Gavel'
 
 // Icon component type — all MUI SvgIcon components satisfy this
 export type IconComponent = ElementType
@@ -46,11 +52,23 @@ export const SERVICE_ICONS: Record<string, IconComponent> = {
   Other:        BuildIcon,
 }
 
+export const EXPENSE_CATEGORY_ICONS: Record<string, IconComponent> = {
+  Insurance:   SecurityIcon,
+  Tax:         AccountBalanceIcon,
+  Parking:     LocalParkingIcon,
+  Tolls:       PaymentIcon,
+  Fines:       GavelIcon,
+  CarWash:     OpacityIcon,
+  Accessories: BuildIcon,
+  Other:       AssignmentIcon,
+}
+
 // Timeline event dot icons
 export const TIMELINE_ICONS: Record<string, IconComponent> = {
   Maintenance: BuildIcon,
   Service:     BuildIcon,
   Fuel:        LocalGasStationIcon,
   Liquid:      OpacityIcon,
+  Expense:     CreditCardIcon,
   Other:       AssignmentIcon,
 }

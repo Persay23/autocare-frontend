@@ -111,15 +111,16 @@ export const PREDICTION_STATUS_ORDER = {
 
 export const EXPENSE_CATEGORIES = [
   'Insurance',
-  'Parking',
-  'Toll',
-  'Washing',
-  'RoadsideAssistance',
-  'Registration',
-  'TechnicalInspection',
-  'Fine',
   'Tax',
+  'Parking',
+  'Tolls',
+  'Fines',
+  'CarWash',
+  'Accessories',
   'Other',
 ] as const
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
+
+export const RECURRENCE_INTERVALS = ['Days', 'Weeks', 'Months', 'Years'] as const
+export type RecurrenceInterval = (typeof RECURRENCE_INTERVALS)[number]

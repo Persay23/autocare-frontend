@@ -38,7 +38,8 @@ export interface VehicleComponent {
   state: string
   currentState?: string            // alias used by health/detail endpoints
   notes?: string
-  currentMileage: number
+  installedAtVehicleMileage: number // vehicle odometer at time of installation
+  vehicleCurrentMileage: number    // vehicle's current odometer (for km-used calc)
   expectedLifetimeKm: number
   expectedLifetimeYears: number
   partNumber?: string
@@ -46,6 +47,13 @@ export interface VehicleComponent {
   warrantyDate?: string
   nextServiceRecommendedKm?: number
   nextServiceRecommendedDate?: string
+  // AI fields — populated after POST /api/ai/predict/{componentId}
+  aiEstimatedNextServiceDate?: string
+  aiEstimatedRemainingKm?: number
+  aiConfidenceScore?: number
+  aiRecommendation?: string
+  aiGeneratedAt?: string
+  aiHealthPercent?: number
 }
 
 /** Computed health data — returned by /vehiclecomponent/vehicle/{id}/health */
@@ -120,13 +128,19 @@ export interface FuelEntry {
 export interface Prediction {
   predictionId: number
   vehicleId: number
-  componentType: string
-  predictedServiceDate: string
-  confidenceScore: number
+  vehicleComponentId?: number
+  componentName?: string
+  componentType?: string
+  title: string
+  description: string
+  urgency: 'Immediate' | 'Soon' | 'Scheduled' | 'Suggested'
+  confidenceScore?: number
+  suggestedByDate?: string
+  estimatedRemainingKm?: number
   status: string
-  completedAt?: string
-  recommendation?: string
   createdAt: string
+  completedAt?: string
+  ignoredAt?: string
 }
 
 export interface TimelineEvent {
@@ -140,12 +154,18 @@ export interface TimelineEvent {
 }
 
 export interface GeneralExpense {
-  expenseId: number
+  generalExpenseId: number
   vehicleId: number
-  category: string
-  amount: number
-  date: string
+  expenseCategory: string
+  cost: number
   description?: string
+  notes?: string
+  date: string
+  isRecurring: boolean
+  recurrenceInterval?: string
+  recurrenceEvery?: number
+  recurrenceEndDate?: string
+  nextOccurrenceDate?: string
 }
 
 /** Monthly cost breakdown — from /vehicle/{id}/summary/costs */
