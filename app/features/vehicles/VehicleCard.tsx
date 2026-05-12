@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import StatusPill from '@/ui/StatusPill'
 import HealthBar from '@/ui/HealthBar'
 import { formatEnumLabel } from '@/lib/formatters'
+import { healthPctToState } from '@/lib/healthState'
 import type { Vehicle, ComponentHealth } from '@/lib/types'
 
 const STATE_ORDER = ['Critical', 'Repair', 'Normal', 'Good', 'Perfect', 'Unknown'] as const
@@ -24,18 +25,26 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
       )
     : null
 
+  // Derive state per component from health % so pills are consistent with the bar
+  const derivedStates = (health ?? []).map((c) => {
+    const km = c.kmLifetimePercent ?? 0
+    const yr = c.yearsLifetimePercent ?? 0
+    if (km === 0 && yr === 0) return 'Unknown'
+    return healthPctToState(Math.min(km, yr))
+  })
+
+  const counts = derivedStates.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = (acc[s] ?? 0) + 1
+    return acc
+  }, {})
+
   const worstState = (() => {
     if (!health?.length) return null
     for (const state of STATE_ORDER) {
-      if (health.some((c) => c.currentState === state)) return state
+      if (counts[state]) return state
     }
     return 'Unknown'
   })()
-
-  const counts = (health ?? []).reduce<Record<string, number>>((acc, c) => {
-    acc[c.currentState] = (acc[c.currentState] ?? 0) + 1
-    return acc
-  }, {})
 
   const alerts = (counts['Critical'] ?? 0) + (counts['Repair'] ?? 0)
   const goodPlus = (counts['Perfect'] ?? 0) + (counts['Good'] ?? 0) + (counts['Normal'] ?? 0)
@@ -46,9 +55,9 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
     { key: 'Unknown',  count: counts['Unknown']  ?? 0, bg: 'rgba(123,128,168,0.12)', color: 'var(--text2)',  border: 'rgba(123,128,168,0.25)' },
   ].filter((c) => c.count > 0)
 
-  const hasAttn = attnChips.length > 0
+  const hasPills = (health?.length ?? 0) > 0
 
-  const isCritical = worstState === 'Critical' || worstState === 'Repair'
+  const isCritical = worstState === 'Critical'
   const cardStyle = isCritical
     ? { background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)' }
     : { background: 'var(--surface)',         border: '1px solid var(--border)' }
@@ -90,7 +99,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
 
       {/* Health bar */}
       {overallHealth !== null && (
-        <div style={{ marginBottom: hasAttn ? 10 : 12 }}>
+        <div style={{ marginBottom: hasPills ? 10 : 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
               Fleet health
@@ -104,7 +113,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
       )}
 
       {/* State chips */}
-      {hasAttn && (
+      {hasPills && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 12 }}>
           {attnChips.map(({ key, count, bg, color, border }) => (
             <span key={key} style={{

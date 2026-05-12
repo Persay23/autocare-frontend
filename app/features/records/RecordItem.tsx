@@ -1,8 +1,10 @@
 import { SERVICE_ICONS } from '@/lib/icons'
 import { formatEnumLabel } from '@/lib/formatters'
 import type { MaintenanceRecord } from '@/lib/types'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
 export default function RecordItem({ record, onClick }: { record: MaintenanceRecord; onClick: () => void }) {
+  const { currency } = useCurrencyStore()
   const RecordIcon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
 
   const shortDate = record.serviceDate
@@ -57,7 +59,7 @@ export default function RecordItem({ record, onClick }: { record: MaintenanceRec
 
       <div style={{ flexShrink: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent3)', textAlign: 'right' }}>
-          {record.cost != null ? `${record.cost.toLocaleString()} zł` : '—'}
+          {record.cost != null ? formatMoney(record.cost, currency) : '—'}
         </div>
       </div>
     </div>
