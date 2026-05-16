@@ -1,70 +1,45 @@
-import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import { getPredictionsByVehicle, updatePrediction } from '@/features/predictions/api'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { getPredictionsByVehicle, updatePrediction, triggerAiSuggest } from '@/features/predictions/api'
 import { dedupFetch } from '@/lib/dedup'
-import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
-import { COMPONENT_ICONS } from '@/lib/icons'
-import { formatEnumLabel } from '@/lib/formatters'
-import { toConfidencePercent } from '@/lib/confidenceUtils'
-
+import { LoadingState, ErrorState } from '@/ui/AsyncStates'
+import PredictionCard from '@/features/predictions/PredictionCard'
 import type { Prediction } from '@/lib/types'
 
-function daysDiff(dateStr: string): number {
-  return Math.round(
-    (new Date(dateStr).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000
-  )
-}
+const URGENCY_ORDER: Prediction['urgency'][] = ['Immediate', 'Soon', 'Scheduled', 'Suggested']
 
-function relativeLabel(dateStr: string): string {
-  const d = daysDiff(dateStr)
-  if (d < 0)  return `${Math.abs(d)} day${Math.abs(d) !== 1 ? 's' : ''} overdue`
-  if (d === 0) return 'today'
-  if (d === 1) return 'tomorrow'
-  if (d < 7)  return `in ${d} days`
-  if (d < 30) return `in ${Math.round(d / 7)} week${Math.round(d / 7) !== 1 ? 's' : ''}`
-  return `in ${Math.round(d / 30)} month${Math.round(d / 30) !== 1 ? 's' : ''}`
-}
-
-function formatDate(dateStr: string): string {
-  const d = daysDiff(dateStr)
-  if (d < 60) {
-    return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-  }
-  return new Date(dateStr).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
-}
-
-function PredIcon({ componentType }: { componentType: string }) {
-  const Icon = COMPONENT_ICONS[componentType] ?? COMPONENT_ICONS.Other
-  return (
-    <div style={{
-      width: 34, height: 34, borderRadius: 9,
-      background: 'var(--surface3)', border: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    }}>
-      <Icon sx={{ fontSize: 16, color: 'var(--text3)' }} />
-    </div>
-  )
+const URGENCY_SECTION: Record<string, { label: string; color: string }> = {
+  Immediate: { label: 'Immediate', color: 'var(--red)'    },
+  Soon:      { label: 'Soon',      color: 'var(--orange)' },
+  Scheduled: { label: 'Scheduled', color: 'var(--yellow)' },
+  Suggested: { label: 'Suggested', color: 'var(--text3)'  },
 }
 
 export default function VehiclePredictions() {
   const { vehicleId } = useParams()
+  const navigate = useNavigate()
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
+  const load = useCallback(() => {
+    setLoading(true)
+    setError(null)
     dedupFetch(`predictions-${vehicleId}`, () => getPredictionsByVehicle(vehicleId!))
-      .then((res) => { if (!cancelled) setPredictions(res.data) })
-      .catch(() => { if (!cancelled) setError('Failed to load predictions.') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then((res) => setPredictions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setError('Failed to load predictions.'))
+      .finally(() => setLoading(false))
   }, [vehicleId])
+
+  useEffect(() => { load() }, [load])
 
   const handleIgnore = async (p: Prediction) => {
     try {
-      await updatePrediction(p.predictionId, { status: 'Ignored' })
-      setPredictions((prev) => prev.map((x) => x.predictionId === p.predictionId ? { ...x, status: 'Ignored' } : x))
+      await updatePrediction(p.predictionId, { status: 'Ignored', ignoredAt: new Date().toISOString() })
+      setPredictions((prev) => prev.map((x) =>
+        x.predictionId === p.predictionId ? { ...x, status: 'Ignored', ignoredAt: new Date().toISOString() } : x
+      ))
     } catch { /* no-op */ }
   }
 
@@ -72,17 +47,34 @@ export default function VehiclePredictions() {
     const completedAt = new Date().toISOString()
     try {
       await updatePrediction(p.predictionId, { status: 'Completed', completedAt })
-      setPredictions((prev) => prev.map((x) => x.predictionId === p.predictionId ? { ...x, status: 'Completed', completedAt } : x))
+      setPredictions((prev) => prev.map((x) =>
+        x.predictionId === p.predictionId ? { ...x, status: 'Completed', completedAt } : x
+      ))
     } catch { /* no-op */ }
   }
 
+  const handleRefresh = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await triggerAiSuggest(vehicleId!)
+      // Wait a moment for the backend fire-and-forget to complete, then re-fetch
+      await new Promise((r) => setTimeout(r, 3000))
+      const res = await getPredictionsByVehicle(vehicleId!)
+      setPredictions(Array.isArray(res.data) ? res.data : [])
+    } catch { /* no-op */ }
+    finally { setRefreshing(false) }
+  }
+
   const active    = predictions.filter((p) => p.status === 'Active')
-  const dueSoon   = active.filter((p) => daysDiff(p.predictedServiceDate) <= 7)
-    .sort((a, b) => new Date(a.predictedServiceDate).getTime() - new Date(b.predictedServiceDate).getTime())
-  const upcoming  = active.filter((p) => daysDiff(p.predictedServiceDate) > 7)
-    .sort((a, b) => new Date(a.predictedServiceDate).getTime() - new Date(b.predictedServiceDate).getTime())
-  const completed = predictions.filter((p) => p.status === 'Completed' || p.status === 'Ignored')
-    .sort((a, b) => new Date(b.predictedServiceDate).getTime() - new Date(a.predictedServiceDate).getTime())
+  const done      = predictions.filter((p) => p.status === 'Completed' || p.status === 'Ignored')
+
+  const activeByUrgency = URGENCY_ORDER
+    .map((u) => ({ urgency: u, items: active.filter((p) => p.urgency === u) }))
+    .filter((g) => g.items.length > 0)
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
   return (
     <div>
@@ -92,163 +84,100 @@ export default function VehiclePredictions() {
         padding: '16px 22px 10px',
       }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Predictions</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
+            AI Predictions
+          </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-            AI-estimated service dates
+            Prioritised action suggestions
           </div>
         </div>
-        {active.length > 0 && (
-          <div style={{
-            padding: '5px 12px', borderRadius: 999,
-            background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.35)',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 10, fontWeight: 600, color: 'var(--accent)',
-            flexShrink: 0,
-          }}>
-            {active.length} active
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          {active.length > 0 && (
+            <div style={{
+              padding: '5px 12px', borderRadius: 999,
+              background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.35)',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, fontWeight: 600, color: 'var(--accent)',
+            }}>
+              {active.length} active
+            </div>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: '5px 12px', borderRadius: 999,
+              background: refreshing ? 'var(--surface3)' : 'rgba(52,211,153,0.1)',
+              border: `1px solid ${refreshing ? 'var(--border)' : 'rgba(52,211,153,0.3)'}`,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, fontWeight: 600,
+              color: refreshing ? 'var(--text3)' : 'var(--green)',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {refreshing ? '⟳ Analysing...' : '⟳ Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
-      {!loading && !error && predictions.length === 0 && (
-        <EmptyState icon="🤖" message="No predictions yet — add components and records first" />
-      )}
 
-      {!loading && !error && predictions.length > 0 && (
-        <div style={{ padding: '0 16px 24px' }}>
+      {!loading && !error && (
+        <div style={{ padding: '0 22px 24px' }}>
 
-          {/* DUE SOON */}
-          {dueSoon.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 9, fontWeight: 700, color: 'var(--orange)',
-                textTransform: 'uppercase', letterSpacing: '0.1em',
-                marginBottom: 8,
-              }}>
-                Due Soon
+          {/* ── Active, grouped by urgency — or "all good" card ── */}
+          {active.length === 0 ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: 10, padding: '32px 16px', textAlign: 'center',
+              background: 'rgba(52,211,153,0.06)',
+              border: '1px solid rgba(52,211,153,0.2)',
+              borderRadius: 14, marginBottom: 20,
+            }}>
+              <div style={{ fontSize: 32 }}>🛡️</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                Your vehicle is in great shape
               </div>
-              {dueSoon.map((p) => {
-                const conf = toConfidencePercent(p.confidenceScore)
-                const rel  = relativeLabel(p.predictedServiceDate)
-                const dateFormatted = new Date(p.predictedServiceDate)
-                  .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                return (
-                  <div key={p.predictionId} style={{
-                    background: 'rgba(251,146,60,0.07)',
-                    border: '1px solid rgba(251,146,60,0.25)',
-                    borderRadius: 12, padding: '12px 14px',
-                    marginBottom: 8,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
-                            {formatEnumLabel(p.componentType)}
-                          </span>
-                          <span style={{
-                            padding: '2px 7px', borderRadius: 999,
-                            background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: 9, fontWeight: 600, color: 'var(--orange)',
-                          }}>
-                            {rel}
-                          </span>
-                        </div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)' }}>
-                          {formatEnumLabel(p.componentType)} · {dateFormatted}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                        <div style={{
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: 9, color: 'var(--text3)', marginBottom: 2,
-                        }}>
-                          Confidence
-                        </div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-                          {conf}%
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button
-                        onClick={() => handleDone(p)}
-                        style={{
-                          flex: 1, padding: '10px 0', borderRadius: 8,
-                          background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)',
-                          color: 'var(--green)',
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        }}
-                      >
-                        ✓ Mark as done
-                      </button>
-                      <button
-                        onClick={() => handleIgnore(p)}
-                        style={{
-                          padding: '10px 16px', borderRadius: 8,
-                          background: 'var(--surface3)', border: '1px solid var(--border)',
-                          color: 'var(--text2)',
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: 11, cursor: 'pointer',
-                        }}
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* UPCOMING */}
-          {upcoming.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 9, fontWeight: 700, color: 'var(--text3)',
-                textTransform: 'uppercase', letterSpacing: '0.1em',
-                marginBottom: 8,
-              }}>
-                Upcoming
+              <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5, maxWidth: 260 }}>
+                AI found no urgent or scheduled actions needed. Keep up with regular
+                maintenance to stay ahead.
               </div>
-              {upcoming.map((p) => {
-                const conf = toConfidencePercent(p.confidenceScore)
-                return (
-                  <div key={p.predictionId} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 10, padding: '10px 12px', marginBottom: 8,
-                  }}>
-                    <PredIcon componentType={p.componentType} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                        {formatEnumLabel(p.componentType)}
-                      </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)' }}>
-                        {formatEnumLabel(p.componentType)} · {relativeLabel(p.predictedServiceDate)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
-                        {formatDate(p.predictedServiceDate)}
-                      </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>
-                        {conf}% conf.
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
             </div>
-          )}
+          ) : activeByUrgency.map(({ urgency, items }) => {
+            const sect = URGENCY_SECTION[urgency]
+            return (
+              <div key={urgency} style={{ marginBottom: 20 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: sect.color, flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 9, fontWeight: 700, color: sect.color,
+                    textTransform: 'uppercase', letterSpacing: '0.1em',
+                  }}>
+                    {sect.label}
+                  </span>
+                </div>
+                {items.map((p) => (
+                  <PredictionCard
+                    key={p.predictionId}
+                    prediction={p}
+                    onDone={handleDone}
+                    onIgnore={handleIgnore}
+                    onClick={() => navigate(`/vehicles/${vehicleId}/predictions/${p.predictionId}`)}
+                  />
+                ))}
+              </div>
+            )
+          })}
 
-          {/* COMPLETED / IGNORED */}
-          {completed.length > 0 && (
+          {/* ── Completed / Ignored ── */}
+          {done.length > 0 && (
             <div>
               <div style={{
                 fontFamily: "'JetBrains Mono', monospace",
@@ -258,26 +187,34 @@ export default function VehiclePredictions() {
               }}>
                 Completed
               </div>
-              {completed.map((p) => {
+              {done.map((p) => {
                 const isIgnored = p.status === 'Ignored'
-                const dateStr = p.completedAt
-                  ? new Date(p.completedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                  : new Date(p.predictedServiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                const dateMeta = p.completedAt ? fmtDate(p.completedAt)
+                  : p.ignoredAt ? fmtDate(p.ignoredAt) : ''
                 return (
-                  <div key={p.predictionId} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 10, padding: '10px 12px', marginBottom: 8,
-                    opacity: 0.55,
-                  }}>
-                    <PredIcon componentType={p.componentType} />
+                  <div
+                    key={p.predictionId}
+                    onClick={() => navigate(`/vehicles/${vehicleId}/predictions/${p.predictionId}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: 'var(--surface)', border: '1px solid var(--border)',
+                      borderRadius: 10, padding: '10px 12px', marginBottom: 8,
+                      opacity: 0.5, cursor: 'pointer',
+                    }}
+                  >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text3)', marginBottom: 2 }}>
-                        {formatEnumLabel(p.componentType)}
+                      <div style={{
+                        fontSize: 13, fontWeight: 500, color: 'var(--text3)',
+                        marginBottom: 2, whiteSpace: 'nowrap',
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {p.title}
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-                        {formatEnumLabel(p.componentType)} · {dateStr}
-                      </div>
+                      {dateMeta && (
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
+                          {isIgnored ? 'Ignored' : 'Done'} · {dateMeta}
+                        </div>
+                      )}
                     </div>
                     <div style={{
                       fontFamily: "'JetBrains Mono', monospace",
@@ -285,14 +222,13 @@ export default function VehiclePredictions() {
                       color: isIgnored ? 'var(--text3)' : 'var(--green)',
                       flexShrink: 0,
                     }}>
-                      {isIgnored ? '✕ Ignored' : '✓ Done'}
+                      {isIgnored ? '✕' : '✓'}
                     </div>
                   </div>
                 )
               })}
             </div>
           )}
-
         </div>
       )}
     </div>

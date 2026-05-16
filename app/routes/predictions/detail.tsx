@@ -8,32 +8,18 @@ import type { Prediction } from '@/lib/types'
 import { LoadingText } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
-import { formatEnumLabel } from '@/lib/formatters'
-import { toConfidencePercent } from '@/lib/confidenceUtils'
 
-function relativeDate(iso: string): string {
-  const target = new Date(iso)
-  target.setHours(0, 0, 0, 0)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diff = Math.round((target.getTime() - today.getTime()) / 86_400_000)
-  if (diff === 0) return 'today'
-  if (diff === 1) return 'tomorrow'
-  if (diff === -1) return 'yesterday'
-  if (diff > 0) return `in ${diff} days`
-  return `${-diff} days ago`
-}
-
-function confidenceLevel(pct: number): { label: string; color: string } {
-  if (pct >= 75) return { label: 'High',   color: 'var(--green)'  }
-  if (pct >= 50) return { label: 'Medium', color: 'var(--yellow)' }
-  return              { label: 'Low',    color: 'var(--red)'    }
+const URGENCY_COLOR: Record<string, string> = {
+  Immediate: 'var(--red)',
+  Soon:      'var(--orange)',
+  Scheduled: 'var(--yellow)',
+  Suggested: 'var(--green)',
 }
 
 function statusPill(status: string): { bg: string; color: string; text: string } {
   if (status === 'Completed') return { bg: 'rgba(52,211,153,0.15)',  color: 'var(--green)',  text: '✓ Completed' }
   if (status === 'Ignored')   return { bg: 'rgba(123,128,168,0.15)', color: 'var(--text2)', text: '— Ignored'   }
-  return                             { bg: 'rgba(251,191,36,0.15)',  color: 'var(--yellow)', text: '⚠ Predicted' }
+  return                             { bg: 'rgba(251,191,36,0.15)',  color: 'var(--yellow)', text: '◉ Active'    }
 }
 
 export default function PredictionDetail() {
@@ -45,7 +31,6 @@ export default function PredictionDetail() {
     : navigate(`/vehicles/${vehicleId}/predictions`)
   const [prediction, setPrediction] = useState<Prediction | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showConfidenceInfo, setShowConfidenceInfo] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -62,23 +47,20 @@ export default function PredictionDetail() {
   }
 
   const handleIgnore = async () => {
-    await updatePrediction(predictionId!, { status: 'Ignored' })
-    setPrediction((prev) => prev ? { ...prev, status: 'Ignored' } : prev)
+    const ignoredAt = new Date().toISOString()
+    await updatePrediction(predictionId!, { status: 'Ignored', ignoredAt })
+    setPrediction((prev) => prev ? { ...prev, status: 'Ignored', ignoredAt } : prev)
   }
 
   if (loading) return <PageShell><LoadingText /></PageShell>
   if (!prediction) return <PageShell><div style={{ padding: 22, color: 'var(--text2)' }}>Prediction not found.</div></PageShell>
 
-  const pct = toConfidencePercent(prediction.confidenceScore)
-  const { label: confLabel, color: confColor } = confidenceLevel(pct)
   const { bg: pillBg, color: pillColor, text: pillText } = statusPill(prediction.status)
-  const componentName = formatEnumLabel(prediction.componentType)
-  const formattedDate = new Date(prediction.predictedServiceDate).toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  })
-  const relative = relativeDate(prediction.predictedServiceDate)
+  const urgencyColor = URGENCY_COLOR[prediction.urgency] ?? 'var(--accent)'
   const isActive = prediction.status === 'Active'
-  const isUrgent = relative === 'today' || relative === 'tomorrow'
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
   return (
     <PageShell>
@@ -96,10 +78,23 @@ export default function PredictionDetail() {
       }}>
         {/* Header */}
         <div style={{ padding: '16px 16px 14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-              Service predicted
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            {/* Urgency badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: urgencyColor, flexShrink: 0,
+                boxShadow: `0 0 5px ${urgencyColor}`,
+              }} />
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                color: urgencyColor,
+              }}>
+                {prediction.urgency}
+              </span>
+            </div>
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
               background: pillBg, color: pillColor, borderRadius: 6, padding: '3px 9px',
@@ -108,76 +103,34 @@ export default function PredictionDetail() {
             </span>
           </div>
 
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', marginBottom: 8, lineHeight: 1.2 }}>
-            {componentName}
+          {/* Title */}
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 8, lineHeight: 1.25 }}>
+            {prediction.title}
           </div>
 
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text2)' }}>
-              {formattedDate}
-            </span>
-            <span style={{ color: 'var(--text3)', fontSize: 10 }}>·</span>
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-              color: isUrgent ? 'var(--yellow)' : 'var(--text2)',
-              fontWeight: isUrgent ? 600 : 400,
-            }}>
-              {relative}
-            </span>
-          </div>
-        </div>
+          {/* Description */}
+          {prediction.description && (
+            <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 10 }}>
+              {prediction.description}
+            </div>
+          )}
 
-        <div style={{ height: 1, background: 'var(--border)' }} />
-
-        {/* AI Confidence */}
-        <div style={{ padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', flex: 1 }}>
-              AI confidence
-            </span>
-            <button
-              type="button"
-              onMouseEnter={() => setShowConfidenceInfo(true)}
-              onMouseLeave={() => setShowConfidenceInfo(false)}
-              onClick={() => setShowConfidenceInfo((p) => !p)}
-              style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: 'var(--surface3)', border: '1px solid var(--border)',
-                color: 'var(--text3)', fontSize: 10, fontWeight: 700,
-                cursor: 'pointer', flexShrink: 0, marginRight: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              ?
-            </button>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)', marginRight: 4 }}>
-              {confLabel}
-            </span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: confColor }}>
-              {pct}%
-            </span>
-          </div>
-
-          <div style={{ height: 6, borderRadius: 3, background: 'var(--surface3)', overflow: 'hidden', marginBottom: showConfidenceInfo ? 12 : 0 }}>
+          {/* Meta row */}
+          {(prediction.suggestedByDate || prediction.estimatedRemainingKm || prediction.componentName) && (
             <div style={{
-              height: '100%', width: `${pct}%`,
-              background: confColor, borderRadius: 3,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-
-          {showConfidenceInfo && (
-            <div style={{
-              background: 'rgba(108,99,255,0.06)', border: '1px solid rgba(108,99,255,0.15)',
-              borderRadius: 10, padding: '10px 12px',
+              display: 'flex', flexWrap: 'wrap', gap: '4px 12px',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, color: 'var(--text3)',
             }}>
-              <div style={{ fontStyle: 'italic', fontSize: 11, color: 'var(--text3)', marginBottom: 5 }}>
-                About confidence
-              </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)', lineHeight: 1.6 }}>
-                Confidence shows how certain the AI is about the date — not how soon the part will fail.
-                Treat this as a reminder, not a guarantee.
-              </div>
+              {prediction.suggestedByDate && (
+                <span>By {fmtDate(prediction.suggestedByDate)}</span>
+              )}
+              {prediction.estimatedRemainingKm != null && (
+                <span>{prediction.estimatedRemainingKm.toLocaleString()} km remaining</span>
+              )}
+              {prediction.componentName && (
+                <span>→ {prediction.componentName}</span>
+              )}
             </div>
           )}
         </div>
@@ -212,9 +165,14 @@ export default function PredictionDetail() {
         )}
       </div>
 
-      <ActionButton variant="ghost" onClick={() => navigate(`/vehicles/${vehicleId}/components`)}>
-        View component →
-      </ActionButton>
+      {prediction.vehicleComponentId && (
+        <ActionButton
+          variant="ghost"
+          onClick={() => navigate(`/vehicles/${vehicleId}/components/${prediction.vehicleComponentId}`)}
+        >
+          View component →
+        </ActionButton>
+      )}
       <div style={{ height: 24 }} />
     </PageShell>
   )
