@@ -9,6 +9,7 @@ import { formatEnumLabel } from '@/lib/formatters'
 import QuickSetupSheet from '@/ui/QuickSetupSheet'
 
 import type { ComponentHealth } from '@/lib/types'
+import { healthPctToState } from '@/lib/healthState'
 
 type SortKey  = 'health-asc' | 'health-desc' | 'name-asc' | 'name-desc'
 type FilterKey = 'all' | 'critical' | 'repair' | 'warning' | 'good'
@@ -29,11 +30,17 @@ const ATTENTION_STYLE: Record<string, { cardBg: string; cardBorder: string; labe
 }
 
 function healthColor(pct: number): string {
-  if (pct <= 15) return 'var(--red)'
-  if (pct <= 30) return 'var(--orange)'
-  if (pct <= 50) return 'var(--yellow)'
-  if (pct <= 75) return 'var(--green)'
-  return 'var(--accent4)'
+  if (pct >= 75) return 'var(--accent4)'
+  if (pct >= 51) return 'var(--green)'
+  if (pct >= 31) return 'var(--yellow)'
+  if (pct >= 16) return 'var(--orange)'
+  return 'var(--red)'
+}
+
+/** Always compute state from health %, ignoring the stored DB value */
+function getDerivedState(c: ComponentHealth): string {
+  const pct = Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0)
+  return healthPctToState(pct)
 }
 
 export default function VehicleComponents() {
@@ -71,16 +78,16 @@ export default function VehicleComponents() {
 
   const existingTypes = new Set(health.map((h) => h.componentType))
 
-  const criticalCount = health.filter((c) => c.currentState === 'Critical').length
-  const repairCount   = health.filter((c) => c.currentState === 'Repair').length
-  const warningCount  = health.filter((c) => c.currentState === 'Warning').length
+  const criticalCount = health.filter((c) => getDerivedState(c) === 'Critical').length
+  const repairCount   = health.filter((c) => getDerivedState(c) === 'Repair').length
+  const warningCount  = health.filter((c) => getDerivedState(c) === 'Warning').length
 
   const filteredHealth = useMemo(() => {
     if (filter === 'all')      return health
-    if (filter === 'critical') return health.filter((c) => c.currentState === 'Critical')
-    if (filter === 'repair')   return health.filter((c) => c.currentState === 'Repair')
-    if (filter === 'warning')  return health.filter((c) => c.currentState === 'Warning')
-    return health.filter((c) => !ATTENTION_STATES.has(c.currentState))
+    if (filter === 'critical') return health.filter((c) => getDerivedState(c) === 'Critical')
+    if (filter === 'repair')   return health.filter((c) => getDerivedState(c) === 'Repair')
+    if (filter === 'warning')  return health.filter((c) => getDerivedState(c) === 'Warning')
+    return health.filter((c) => !ATTENTION_STATES.has(getDerivedState(c)))
   }, [health, filter])
 
   const sortedHealth = useMemo(() => {
@@ -96,8 +103,8 @@ export default function VehicleComponents() {
     })
   }, [filteredHealth, sort])
 
-  const needsAttention = sortedHealth.filter((c) => ATTENTION_STATES.has(c.currentState))
-  const healthy        = sortedHealth.filter((c) => !ATTENTION_STATES.has(c.currentState))
+  const needsAttention = sortedHealth.filter((c) => ATTENTION_STATES.has(getDerivedState(c)))
+  const healthy        = sortedHealth.filter((c) => !ATTENTION_STATES.has(getDerivedState(c)))
   const showGroups     = filter === 'all'
 
   const filterOptions: { key: FilterKey; label: string }[] = [
@@ -266,7 +273,7 @@ export default function VehicleComponents() {
           )}
 
           {!showGroups && sortedHealth.map((c) => (
-            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={navigate} attention={ATTENTION_STATES.has(c.currentState)} />
+            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={navigate} attention={ATTENTION_STATES.has(getDerivedState(c))} />
           ))}
         </div>
       )}
@@ -310,7 +317,10 @@ function ComponentCard({
   const healthPct = Math.min(component.kmLifetimePercent ?? 0, component.yearsLifetimePercent ?? 0)
   const hColor = healthColor(healthPct)
   const CI = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other
-  const attnStyle = ATTENTION_STYLE[component.currentState]
+  const derivedState = healthPctToState(healthPct)
+  const attnStyle = ATTENTION_STYLE[derivedState]
+  const isUnknown = component.currentState === 'Unknown'
+  const displayColor = isUnknown ? 'var(--text2)' : hColor
   const displayName = component.vehicleComponentName || formatEnumLabel(component.componentType)
   const subtitle = [
     component.vehicleComponentName ? formatEnumLabel(component.componentType) : null,
@@ -347,34 +357,32 @@ function ComponentCard({
             </div>
           )}
         </div>
-        <div style={{ flexShrink: 0, textAlign: 'right' }}>
-          {attention && attnStyle ? (
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700,
-              color: attnStyle.labelColor,
-            }}>
-              {component.currentState}
-            </span>
-          ) : (
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700,
-              color: hColor,
-            }}>
-              {Math.round(healthPct)}%
-            </span>
-          )}
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 13, fontWeight: 700,
+            color: displayColor,
+            lineHeight: 1.2,
+          }}>
+            {derivedState}
+          </span>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 9,
+            color: displayColor,
+          }}>
+            {isUnknown ? '??' : `${Math.round(healthPct)}% left`}
+          </span>
         </div>
       </div>
 
-      <HealthBar percent={healthPct} />
-
-      {attention && (
+      {isUnknown ? (
         <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-          color: attnStyle?.labelColor ?? hColor, marginTop: 5, textAlign: 'right',
-        }}>
-          {Math.round(healthPct)}% left
-        </div>
+          height: 4, borderRadius: 99,
+          background: 'repeating-linear-gradient(90deg, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 10px)',
+        }} />
+      ) : (
+        <HealthBar percent={healthPct} />
       )}
     </div>
   )

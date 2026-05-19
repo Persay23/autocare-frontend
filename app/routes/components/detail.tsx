@@ -10,6 +10,10 @@ import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
 import { COMPONENT_ICONS } from '@/lib/icons'
 import { formatEnumLabel } from '@/lib/formatters'
+import { healthPctToState, stateColor } from '@/lib/healthState'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
+
+const NOW_MS = Date.now()
 
 const CHANGE_TYPE_STYLE: Record<string, { bg: string; color: string }> = {
   Replaced:  { bg: 'rgba(52,211,153,0.1)',  color: 'var(--green)'   },
@@ -24,10 +28,9 @@ const STATE_PILL: Record<string, { bg: string; color: string }> = {
   Perfect:  { bg: 'rgba(56,189,248,0.12)',  color: 'var(--accent4)' },
   Good:     { bg: 'rgba(52,211,153,0.12)',  color: 'var(--green)'   },
   Normal:   { bg: 'rgba(251,191,36,0.12)',  color: 'var(--yellow)'  },
-  Monitor:  { bg: 'rgba(251,191,36,0.12)',  color: 'var(--yellow)'  },
-  Warning:  { bg: 'rgba(251,146,60,0.12)',  color: 'var(--orange)'  },
-  Repair:   { bg: 'rgba(248,113,113,0.12)', color: 'var(--red)'     },
+  Repair:   { bg: 'rgba(251,146,60,0.12)',  color: 'var(--orange)'  },
   Critical: { bg: 'rgba(248,113,113,0.12)', color: 'var(--red)'     },
+  Unknown:  { bg: 'rgba(123,128,168,0.12)', color: 'var(--text2)'   },
 }
 
 function relativeFromNow(iso: string): string {
@@ -47,6 +50,7 @@ function HistoryItem({ item, vehicleId, onNavigate }: { item: any; vehicleId: st
     day: '2-digit', month: 'short', year: 'numeric',
   })
   const total = item.totalCost ?? ((item.laborCost ?? 0) + (item.partsCost ?? 0) + (item.otherCost ?? 0))
+  const { currency } = useCurrencyStore()
 
   return (
     <button
@@ -84,7 +88,7 @@ function HistoryItem({ item, vehicleId, onNavigate }: { item: any; vehicleId: st
       <div style={{ flexShrink: 0, textAlign: 'right' }}>
         {total > 0 && (
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent3)', marginBottom: 3 }}>
-            {total.toFixed(2)} zł
+            {formatMoney(total, currency)}
           </div>
         )}
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>→</div>
@@ -140,27 +144,35 @@ export default function ComponentDetail() {
   const CompIcon = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other
   const formattedType = formatEnumLabel(component.componentType)
   const state = component.state ?? component.currentState ?? 'Unknown'
-  const pill = STATE_PILL[state] ?? { bg: 'rgba(123,128,168,0.12)', color: 'var(--text2)' }
+  const isUnknown = state === 'Unknown'
 
-  // Health calculations
-  const kmPercent = component.expectedLifetimeKm && component.currentMileage != null
-    ? Math.max(0, Math.min(100, 100 - (component.currentMileage / component.expectedLifetimeKm) * 100))
+  // Health calculations — installedAtVehicleMileage is the vehicle odometer at install (fixed reference point)
+  const kmUsed    = Math.max(0, (component.vehicleCurrentMileage ?? 0) - (component.installedAtVehicleMileage ?? 0))
+  const kmPercent = component.expectedLifetimeKm > 0
+    ? Math.max(0, Math.min(100, (1 - kmUsed / component.expectedLifetimeKm) * 100))
     : 100
   const ageYears = component.installationDate
-    ? (Date.now() - new Date(component.installationDate).getTime()) / (365.25 * 24 * 3600 * 1000)
+    ? (NOW_MS - new Date(component.installationDate).getTime()) / (365.25 * 24 * 3600 * 1000)
     : 0
   const yearsPercent = component.expectedLifetimeYears
     ? Math.max(0, Math.min(100, 100 - (ageYears / component.expectedLifetimeYears) * 100))
     : 100
   const healthPct = Math.min(kmPercent, yearsPercent)
   const healthColor =
-    healthPct <= 15 ? 'var(--red)'
-    : healthPct <= 30 ? 'var(--orange)'
-    : healthPct <= 50 ? 'var(--yellow)'
-    : healthPct <= 75 ? 'var(--green)'
-    : 'var(--accent4)'
+    healthPct >= 75 ? 'var(--accent4)'
+    : healthPct >= 51 ? 'var(--green)'
+    : healthPct >= 31 ? 'var(--yellow)'
+    : healthPct >= 16 ? 'var(--orange)'
+    : 'var(--red)'
+  const derivedState = isUnknown ? 'Unknown' : healthPctToState(healthPct)
+  const pill = STATE_PILL[derivedState] ?? STATE_PILL.Unknown
+  const kmColor = stateColor(healthPctToState(kmPercent))
+  const yearsColor = stateColor(healthPctToState(yearsPercent))
+  const aiHealthColor = component.aiHealthPercent != null
+    ? stateColor(healthPctToState(component.aiHealthPercent))
+    : 'var(--text)'
 
-  const remainingKm   = Math.max(0, (component.expectedLifetimeKm ?? 0) - (component.currentMileage ?? 0))
+  const remainingKm   = Math.max(0, (component.expectedLifetimeKm ?? 0) - kmUsed)
   const remainingYears = Math.max(0, (component.expectedLifetimeYears ?? 0) - ageYears)
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -170,12 +182,22 @@ export default function ComponentDetail() {
   const warrantyValid  = component.warrantyDate ? new Date(component.warrantyDate) > new Date() : false
   const nextDateStr    = component.nextServiceRecommendedDate ? fmtDate(component.nextServiceRecommendedDate) : null
   const nextRelative   = component.nextServiceRecommendedDate ? relativeFromNow(component.nextServiceRecommendedDate) : null
-  const kmAway = component.nextServiceRecommendedKm != null && component.currentMileage != null
-    ? component.nextServiceRecommendedKm - component.currentMileage
+  const kmAway = component.nextServiceRecommendedKm != null
+    ? component.nextServiceRecommendedKm - (component.vehicleCurrentMileage ?? 0)
     : null
 
-  const hasWarranty     = warrantyDateStr || component.warrantyKm
-  const hasNextService  = nextDateStr || component.nextServiceRecommendedKm
+  // AI next-service values (primary when available, fall back to manual)
+  const aiNextDateStr  = component.aiEstimatedNextServiceDate ? fmtDate(component.aiEstimatedNextServiceDate) : null
+  const aiNextRelative = component.aiEstimatedNextServiceDate ? relativeFromNow(component.aiEstimatedNextServiceDate) : null
+  const showAiDate  = aiNextDateStr != null
+  const showManDate = !showAiDate && nextDateStr != null
+  const showDate    = showAiDate || showManDate
+  const showAiKm    = component.aiEstimatedRemainingKm != null
+  const showManKm   = !showAiKm && component.nextServiceRecommendedKm != null
+  const showKm      = showAiKm || showManKm
+
+  const hasWarranty    = warrantyDateStr || component.warrantyKm
+  const hasNextService = showDate || showKm
 
   const sectionLabel = (text: string, action?: { label: string; onClick: () => void }) => (
     <div style={{
@@ -243,7 +265,7 @@ export default function ComponentDetail() {
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: pill.color, display: 'inline-block' }} />
-            {state}
+            {derivedState}
           </span>
         </div>
 
@@ -279,54 +301,107 @@ export default function ComponentDetail() {
 
       {/* ── Remaining lifespan ── */}
       {sectionLabel('Remaining lifespan')}
-      <div style={{
-        margin: '0 22px 10px',
-        background: 'var(--surface2)', border: '1px solid var(--border)',
-        borderRadius: 14, padding: '16px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <div style={{ fontSize: 38, fontWeight: 800, color: healthColor, lineHeight: 1 }}>
-            {Math.round(healthPct)}%
+      {isUnknown ? (
+        <div style={{
+          margin: '0 22px 16px',
+          background: 'rgba(123,128,168,0.06)', border: '1px solid var(--border)',
+          borderRadius: 14, padding: '16px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div style={{ fontSize: 38, fontWeight: 800, color: 'var(--text3)', lineHeight: 1 }}>??</div>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+              background: 'rgba(123,128,168,0.12)', color: 'var(--text2)',
+              borderRadius: 20, padding: '3px 10px',
+            }}>
+              Not configured
+            </span>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            {installedDate && (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>
-                Installed {installedDate}
-              </div>
-            )}
-            {component.currentMileage != null && (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-                {component.currentMileage.toLocaleString()} km used
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ height: 6, borderRadius: 3, background: 'var(--surface3)', overflow: 'hidden', marginBottom: 12 }}>
           <div style={{
-            height: '100%', width: `${healthPct}%`,
-            background: healthColor, borderRadius: 3,
-            transition: 'width 0.4s ease',
+            height: 6, borderRadius: 3, marginBottom: 14,
+            background: 'repeating-linear-gradient(90deg, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 10px)',
           }} />
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            color: 'var(--text2)', lineHeight: 1.6, marginBottom: 12,
+          }}>
+            {!component.expectedLifetimeKm && !component.expectedLifetimeYears
+              ? 'Set expected lifetime (km and/or years) on this component to enable health tracking.'
+              : !component.expectedLifetimeKm
+                ? 'Expected lifetime in km is not set — add it for distance-based health tracking.'
+                : !component.expectedLifetimeYears
+                  ? 'Expected lifetime in years is not set — add it for age-based health tracking.'
+                  : 'Lifetime is configured. Add this component to a service record to compute its health state.'
+            }
+          </div>
+          <button
+            onClick={() => navigate(`/vehicles/${vehicleId}/components/${component.vehicleComponentId ?? component.componentId}/edit`)}
+            style={{
+              width: '100%', padding: '10px 0', borderRadius: 10,
+              background: 'rgba(108,99,255,0.12)', border: '1px solid rgba(108,99,255,0.3)',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600,
+              color: 'var(--accent)', cursor: 'pointer',
+            }}
+          >
+            Configure component →
+          </button>
         </div>
+      ) : (
+        <div style={{
+          margin: '0 22px 10px',
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 14, padding: '16px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div style={{ fontSize: 38, fontWeight: 800, color: healthColor, lineHeight: 1 }}>
+              {Math.round(healthPct)}%
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              {installedDate && (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginBottom: 2 }}>
+                  Installed {installedDate}
+                </div>
+              )}
+              {kmUsed > 0 && (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
+                  {kmUsed.toLocaleString()} km used
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* Stat tiles */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {statTile(
-            'By distance',
-            `${Math.round(kmPercent)}%`,
-            `of ${remainingKm.toLocaleString()} km left`,
-            healthColor,
-          )}
-          {statTile(
-            'By age',
-            `${Math.round(yearsPercent)}%`,
-            `of ${remainingYears.toFixed(1)} years left`,
-            healthColor,
-          )}
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--surface3)', overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{
+              height: '100%', width: `${healthPct}%`,
+              background: healthColor, borderRadius: 3,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: component.aiHealthPercent != null ? 'repeat(3, 1fr)' : '1fr 1fr', gap: 8 }}>
+            {statTile(
+              'By distance',
+              `${Math.round(kmPercent)}%`,
+              `of ${remainingKm.toLocaleString()} km left`,
+              kmColor,
+            )}
+            {statTile(
+              'By age',
+              `${Math.round(yearsPercent)}%`,
+              `of ${remainingYears.toFixed(1)} years left`,
+              yearsColor,
+            )}
+            {component.aiHealthPercent != null && statTile(
+              'AI adjusted',
+              `${component.aiHealthPercent}%`,
+              component.aiConfidenceScore != null
+                ? `${Math.round(component.aiConfidenceScore * 100)}% confidence`
+                : 'AI health score',
+              aiHealthColor,
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Warranty ── */}
       {hasWarranty && (
@@ -376,11 +451,21 @@ export default function ComponentDetail() {
             borderRadius: 14, padding: '14px 16px',
           }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {nextDateStr && statTile('By date', nextDateStr, nextRelative ?? '')}
-              {component.nextServiceRecommendedKm != null && statTile(
-                'By mileage',
-                `${component.nextServiceRecommendedKm.toLocaleString()} km`,
-                kmAway != null ? `${Math.abs(kmAway).toLocaleString()} km ${kmAway >= 0 ? 'away' : 'overdue'}` : '',
+              {showDate && statTile(
+                showAiDate ? 'AI est. date' : 'By date',
+                showAiDate ? aiNextDateStr! : nextDateStr!,
+                showAiDate ? (aiNextRelative ?? '') : (nextRelative ?? ''),
+                showAiDate ? 'var(--accent)' : undefined,
+              )}
+              {showKm && statTile(
+                showAiKm ? 'AI est. (km)' : 'By mileage',
+                showAiKm
+                  ? `${component.aiEstimatedRemainingKm!.toLocaleString()} km`
+                  : `${component.nextServiceRecommendedKm!.toLocaleString()} km`,
+                showAiKm
+                  ? 'km remaining'
+                  : (kmAway != null ? `${Math.abs(kmAway).toLocaleString()} km ${kmAway >= 0 ? 'away' : 'overdue'}` : ''),
+                showAiKm ? 'var(--accent)' : undefined,
               )}
             </div>
           </div>
@@ -407,6 +492,38 @@ export default function ComponentDetail() {
           </div>
         </>
       )}
+
+      {/* ── AI Advice ── */}
+      {sectionLabel('AI Advice')}
+      <div style={{
+        margin: '0 22px 10px',
+        background: 'var(--surface2)', border: '1px solid var(--border)',
+        borderRadius: 14, padding: '14px 16px',
+      }}>
+        {component.aiGeneratedAt ? (
+          <div style={{ borderLeft: '3px solid var(--accent)', paddingLeft: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, marginBottom: 6 }}>
+              {component.aiRecommendation ?? 'No specific recommendation.'}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
+              Generated {fmtDate(component.aiGeneratedAt)}
+              {component.aiConfidenceScore != null && ` · ${Math.round(component.aiConfidenceScore * 100)}% confidence`}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🤖</span>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>
+                AI analysis pending
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', opacity: 0.6, lineHeight: 1.5 }}>
+                Add a service record with this component to trigger AI advice
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Service History ── */}
       {sectionLabel('Service History', history.length > 0 ? {
