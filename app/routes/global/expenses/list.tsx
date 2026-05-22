@@ -1,27 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import BarChart from '@/ui/BarChart'
 import FloatingAddButton from '@/ui/FloatingAddButton'
 import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { useExpensesStore } from '@/features/expenses/expensesStore'
-import { deleteGeneralExpense } from '@/features/expenses/api'
+
 import { formatEnumLabel } from '@/lib/formatters'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 import AddCardIcon from '@mui/icons-material/AddCard'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import BuildIcon from '@mui/icons-material/Build'
-import type { GeneralExpense } from '@/lib/types'
+
 
 const CATEGORY_EMOJI: Record<string, string> = {
-  Insurance:           '🛡️',
-  Parking:             '🅿️',
-  Toll:                '🛣️',
-  Washing:             '🫧',
-  RoadsideAssistance:  '🚨',
-  Registration:        '📋',
-  TechnicalInspection: '🔍',
-  Fine:                '📜',
-  Tax:                 '💰',
-  Other:               '📦',
+  Insurance:   '🛡️',
+  Tax:         '💰',
+  Parking:     '🅿️',
+  Tolls:       '🛣️',
+  Fines:       '📜',
+  CarWash:     '🫧',
+  Accessories: '🔧',
+  Other:       '📦',
 }
 
 const VEHICLE_COLORS = [
@@ -60,18 +60,17 @@ function fmtY(n: number): string {
 type ViewMode = 'category' | 'vehicles'
 
 export default function Expenses() {
+  const navigate = useNavigate()
+  const { currency } = useCurrencyStore()
   const [viewMode, setViewMode] = useState<ViewMode>('category')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showFilter, setShowFilter] = useState(false)
+  const [showOneOff, setShowOneOff] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
-  const [generalExpenses, setGeneralExpenses] = useState<GeneralExpense[]>([])
-  const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
-
   const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
-  const { summaries, loading: summariesLoading, fetchAll } = useExpensesStore()
+  const { summaries, generalExpenses, loading: summariesLoading, generalLoading, fetchAll, fetchGeneralExpenses } = useExpensesStore()
 
-  const loading = vehiclesLoading || summariesLoading
+  const loading = vehiclesLoading || summariesLoading || generalLoading
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -89,7 +88,12 @@ export default function Expenses() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicles.length])
 
-  // Client-side filtering (respects selectedId for month comparison + category view)
+  useEffect(() => {
+    if (!vehicles.length) return
+    fetchGeneralExpenses(vehicles.map((v) => v.vehicleId))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length])
+
   const activeSummaries = selectedId
     ? (summaries[selectedId] ?? [])
     : Object.values(summaries).flat()
@@ -98,20 +102,28 @@ export default function Expenses() {
     ? generalExpenses.filter((e) => e.vehicleId === selectedId)
     : generalExpenses
 
-  // Category chart (last 6 months, filtered)
   const chartData = (() => {
-    if (!activeSummaries.length) return []
-    const byMonth: Record<string, { label: string; maintenance: number; fuel: number }> = {}
+    if (!activeSummaries.length && !activeGeneralExpenses.length) return []
+    const byMonth: Record<string, { key: string; label: string; maintenance: number; fuel: number; general: number }> = {}
     activeSummaries.forEach((d) => {
+      const key = (d.month ?? '').slice(0, 7)
       const label = new Date(d.month).toLocaleDateString('en-GB', { month: 'short' })
-      if (!byMonth[label]) byMonth[label] = { label, maintenance: 0, fuel: 0 }
-      byMonth[label].maintenance += d.maintenanceCost ?? 0
-      byMonth[label].fuel += d.fuelCost ?? 0
+      if (!byMonth[key]) byMonth[key] = { key, label, maintenance: 0, fuel: 0, general: 0 }
+      byMonth[key].maintenance += d.maintenanceCost ?? 0
+      byMonth[key].fuel += d.fuelCost ?? 0
     })
-    return Object.values(byMonth).slice(-6)
+    activeGeneralExpenses.forEach((e) => {
+      const key = (e.date ?? '').slice(0, 7)
+      if (!key) return
+      const label = new Date(e.date).toLocaleDateString('en-GB', { month: 'short' })
+      if (!byMonth[key]) byMonth[key] = { key, label, maintenance: 0, fuel: 0, general: 0 }
+      byMonth[key].general += e.cost ?? 0
+    })
+    return Object.values(byMonth)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .slice(-6)
   })()
 
-  // Vehicle chart months (all vehicles, last 6)
   const vehicleChartMonths = (() => {
     const allData = Object.values(summaries).flat()
     if (!allData.length) return []
@@ -126,7 +138,7 @@ export default function Expenses() {
 
   const maintenanceCost = activeSummaries.reduce((sum, d) => sum + (d.maintenanceCost ?? 0), 0)
   const fuelCost        = activeSummaries.reduce((sum, d) => sum + (d.fuelCost ?? 0), 0)
-  const generalCost     = activeGeneralExpenses.reduce((sum, e) => sum + (e.amount ?? 0), 0)
+  const generalCost     = activeGeneralExpenses.reduce((sum, e) => sum + (e.cost ?? 0), 0)
   const allTimeCost     = maintenanceCost + fuelCost + generalCost
 
   const now = new Date()
@@ -155,14 +167,13 @@ export default function Expenses() {
       const fuelTotal  = vSummaries.reduce((s, d) => s + (d.fuelCost ?? 0), 0)
       const genTotal   = generalExpenses
         .filter((e) => e.vehicleId === v.vehicleId)
-        .reduce((s, e) => s + (e.amount ?? 0), 0)
+        .reduce((s, e) => s + (e.cost ?? 0), 0)
       const total = maintTotal + fuelTotal + genTotal
       return { name: `${v.brand} ${v.model}`, total, vehicleId: v.vehicleId, maintTotal, fuelTotal, genTotal }
     })
     .filter((v) => v.total > 0)
     .sort((a, b) => b.total - a.total)
 
-  // Vehicle chart Y-axis scale
   const vcMaxVal = (() => {
     let max = 0
     vehicleChartMonths.forEach(({ key }) => {
@@ -177,17 +188,6 @@ export default function Expenses() {
   })()
   const vcScale = niceMax(vcMaxVal)
   const vcTicks = Array.from({ length: Y_TICKS + 1 }, (_, i) => Math.round((vcScale / Y_TICKS) * i))
-
-  const handleDelete = async (id: number) => {
-    setDeletingId(id)
-    try {
-      await deleteGeneralExpense(id)
-      setGeneralExpenses((prev) => prev.filter((e) => e.expenseId !== id))
-    } finally {
-      setDeletingId(null)
-      setConfirmDeleteId(null)
-    }
-  }
 
   const fabOptions = [
     { icon: AddCardIcon,         label: 'New General Expense',   path: '/expenses/new' },
@@ -291,8 +291,7 @@ export default function Expenses() {
                 </div>
               ) : (
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>
-                  {thisMonthCost.toLocaleString()}{' '}
-                  <span style={{ fontSize: 12, fontWeight: 500 }}>zł</span>
+                  {formatMoney(thisMonthCost, currency)}
                 </div>
               )}
               {monthChange !== null && (
@@ -318,8 +317,7 @@ export default function Expenses() {
                 </div>
               ) : (
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text2)', lineHeight: 1 }}>
-                  {lastMonthCost.toLocaleString()}{' '}
-                  <span style={{ fontSize: 11, fontWeight: 500 }}>zł</span>
+                  {formatMoney(lastMonthCost, currency)}
                 </div>
               )}
             </div>
@@ -334,7 +332,7 @@ export default function Expenses() {
                 Monthly avg
               </span>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)', fontWeight: 600 }}>
-                {avgMonthly.toLocaleString()} zł
+                {formatMoney(avgMonthly, currency)}
               </span>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>·</span>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
@@ -357,7 +355,7 @@ export default function Expenses() {
           {chartData.length > 0 && (
             <BarChart
               data={chartData}
-              title={`${(maintenanceCost + fuelCost).toLocaleString()} zł`}
+              title={formatMoney(maintenanceCost + fuelCost + generalCost, currency)}
               subtitle={selectedId
                 ? `${vehicles.find((v) => v.vehicleId === selectedId)?.brand} · last 6 months`
                 : 'all vehicles · last 6 months'
@@ -378,7 +376,7 @@ export default function Expenses() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{name}</span>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
-                      {total.toLocaleString()} zł
+                      {formatMoney(total, currency)}
                     </span>
                   </div>
                   <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
@@ -411,7 +409,7 @@ export default function Expenses() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{label}</span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color }}>
-                    {value.toLocaleString()} zł
+                    {formatMoney(value, currency)}
                   </span>
                 </div>
                 <div style={{ height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
@@ -458,7 +456,7 @@ export default function Expenses() {
                     ))}
 
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: '100%', position: 'relative', zIndex: 1 }}>
-                      {vehicleChartMonths.map(({ key, label }) => (
+                      {vehicleChartMonths.map(({ key }) => (
                         <div key={key} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1, height: '100%' }}>
                           {vehicleBreakdown.map(({ vehicleId: vid }, i) => {
                             const monthTotal = (summaries[vid] ?? [])
@@ -528,7 +526,7 @@ export default function Expenses() {
                         <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{name}</span>
                       </div>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color }}>
-                        {total.toLocaleString()} zł
+                        {formatMoney(total, currency)}
                       </span>
                     </div>
                     <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
@@ -547,115 +545,133 @@ export default function Expenses() {
       )}
 
       {/* General expenses list */}
-      {activeGeneralExpenses.length > 0 && (
-        <>
-          <div style={{
-            padding: '8px 22px 10px',
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.12em',
-          }}>
-            General Expenses
-          </div>
-          <div style={{ padding: '0 22px' }}>
-            {activeGeneralExpenses
-              .slice()
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .map((expense) => {
-                const vehicle = vehicles.find((v) => v.vehicleId === expense.vehicleId)
-                const emoji = CATEGORY_EMOJI[expense.category] ?? '💳'
-                const formattedDate = new Date(expense.date).toLocaleDateString('en-GB', {
-                  day: '2-digit', month: 'short', year: 'numeric',
-                })
-                const isConfirming = confirmDeleteId === expense.expenseId
+      {!loading && activeGeneralExpenses.length > 0 && (() => {
+        const sorted = activeGeneralExpenses
+          .slice()
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        const recurring = sorted.filter((e) => e.isRecurring)
+        const oneOff    = sorted.filter((e) => !e.isRecurring && !e.vehicleId)
 
-                return (
-                  <div
-                    key={expense.expenseId}
-                    style={{
-                      background: 'var(--surface2)', border: '1px solid var(--border)',
-                      borderRadius: 12, padding: '12px 14px', marginBottom: 8,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{emoji}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
-                            {formatEnumLabel(expense.category)}
-                          </div>
-                          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
-                            {formattedDate}
-                            {!selectedId && vehicle && ` · ${vehicle.brand} ${vehicle.model}`}
-                          </div>
-                          {expense.description && (
-                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                              {expense.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, paddingLeft: 8 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: CAT_COLORS.general }}>
-                          {expense.amount.toLocaleString()} zł
-                        </span>
-                        {!isConfirming && (
-                          <button
-                            onClick={() => setConfirmDeleteId(expense.expenseId)}
-                            style={{
-                              background: 'none', border: 'none',
-                              color: 'var(--text3)', cursor: 'pointer',
-                              fontSize: 14, padding: '2px 4px', lineHeight: 1,
-                            }}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
+        const ExpenseCard = (expense: typeof activeGeneralExpenses[0]) => {
+          const vehicle       = vehicles.find((v) => v.vehicleId === expense.vehicleId)
+          const emoji         = CATEGORY_EMOJI[expense.expenseCategory] ?? '💳'
+          const formattedDate = new Date(expense.date).toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+          })
+          return (
+            <div
+              key={expense.generalExpenseId}
+              onClick={() => navigate(`/expenses/${expense.generalExpenseId}`)}
+              style={{
+                background: 'var(--surface2)', border: '1px solid var(--border)',
+                borderRadius: 12, padding: '12px 14px', marginBottom: 8,
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                      {formatEnumLabel(expense.expenseCategory)}
                     </div>
-
-                    {isConfirming && (
-                      <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
-                          Delete this expense?
-                        </span>
-                        <button
-                          onClick={() => handleDelete(expense.expenseId)}
-                          disabled={deletingId === expense.expenseId}
-                          style={{
-                            padding: '5px 12px', borderRadius: 8,
-                            background: 'var(--red)', color: '#fff', border: 'none',
-                            fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          }}
-                        >
-                          {deletingId === expense.expenseId ? '...' : 'Delete'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          style={{
-                            padding: '5px 12px', borderRadius: 8,
-                            background: 'var(--surface)', color: 'var(--text2)',
-                            border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer',
-                          }}
-                        >
-                          Cancel
-                        </button>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
+                      {formattedDate}
+                      {!selectedId && vehicle && ` · ${vehicle.brand} ${vehicle.model}`}
+                    </div>
+                    {expense.description && (
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                        {expense.description}
+                      </div>
+                    )}
+                    {expense.isRecurring && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 5,
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 600,
+                        color: 'var(--accent4)',
+                        background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
+                        padding: '2px 7px', borderRadius: 4, letterSpacing: '0.06em',
+                      }}>
+                        ↻ RECURRING · every {expense.recurrenceEvery} {(expense.recurrenceInterval ?? '').toLowerCase()}
                       </div>
                     )}
                   </div>
-                )
-              })}
-          </div>
-        </>
-      )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: CAT_COLORS.general }}>
+                    {formatMoney(expense.cost ?? 0, currency)}
+                  </span>
+                  <span style={{ color: 'var(--text3)', fontSize: 12 }}>›</span>
+                </div>
+              </div>
+            </div>
+          )
+        }
 
-      {!loading && activeGeneralExpenses.length === 0 && (
-        <div style={{
-          padding: '12px 22px 24px', textAlign: 'center',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)',
-        }}>
-        </div>
-      )}
+        return (
+          <>
+            {/* Recurring — always visible */}
+            {recurring.length > 0 && (
+              <>
+                <div style={{
+                  padding: '8px 22px 10px',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                  color: 'var(--text3)', textTransform: 'uppercase' as const, letterSpacing: '0.12em',
+                }}>
+                  Subscriptions &amp; recurring
+                </div>
+                <div style={{ padding: '0 22px' }}>
+                  {recurring.map(ExpenseCard)}
+                </div>
+              </>
+            )}
+
+            {/* One-off — collapsible */}
+            {oneOff.length > 0 && (
+              <div style={{ padding: '0 22px' }}>
+                <button
+                  onClick={() => setShowOneOff((p) => !p)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', marginBottom: showOneOff ? 8 : 0,
+                    background: 'var(--surface2)', border: '1px solid var(--border)',
+                    borderRadius: showOneOff ? '12px 12px 0 0' : 12,
+                    cursor: 'pointer', transition: 'border-radius 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase' as const, letterSpacing: '0.12em' }}>
+                      One-off expenses
+                    </span>
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                      background: 'var(--surface)', border: '1px solid var(--border)',
+                      color: 'var(--text3)', padding: '1px 6px', borderRadius: 4,
+                    }}>
+                      {oneOff.length}
+                    </span>
+                  </div>
+                  <span style={{ color: 'var(--text3)', fontSize: 11, transition: 'transform 0.15s', display: 'inline-block', transform: showOneOff ? 'rotate(180deg)' : 'none' }}>
+                    ▾
+                  </span>
+                </button>
+
+                {showOneOff && (
+                  <div style={{
+                    border: '1px solid var(--border)', borderTop: 'none',
+                    borderRadius: '0 0 12px 12px', padding: '8px 0 0',
+                    background: 'var(--surface2)',
+                  }}>
+                    <div style={{ padding: '0 8px' }}>
+                      {oneOff.map(ExpenseCard)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       <div style={{ height: 80 }} />
       <FloatingAddButton options={fabOptions} />

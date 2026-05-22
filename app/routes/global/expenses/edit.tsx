@@ -1,19 +1,16 @@
 import { useState, useEffect, useRef, type ElementType } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import ActionButton from '@/ui/ActionButton'
-import { createGeneralExpense } from '@/features/expenses/api'
+import { getGeneralExpenseById, updateGeneralExpense } from '@/features/expenses/api'
 import { useExpensesStore } from '@/features/expenses/expensesStore'
-import { getVehicles } from '@/features/vehicles/api'
-import { dedupFetch } from '@/lib/dedup'
 import { LoadingText, ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
-import { useCurrencyStore, SYMBOLS, toPLN } from '@/features/currency/currencyStore'
+import { useCurrencyStore, SYMBOLS, toPLN, RATES } from '@/features/currency/currencyStore'
 import { EXPENSE_CATEGORIES, RECURRENCE_INTERVALS } from '@/lib/enums'
 import { EXPENSE_CATEGORY_ICONS } from '@/lib/icons'
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
-import type { Vehicle } from '@/lib/types'
+import type { GeneralExpense } from '@/lib/types'
 
 const CATEGORY_LABELS: Record<string, string> = {
   Insurance:   'Insurance',
@@ -27,6 +24,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 type FreqPreset = 'Monthly' | 'Yearly' | 'Quarterly' | 'Custom'
+
+function inferPreset(interval: string, every: string): FreqPreset {
+  if (interval === 'Months' && every === '1') return 'Monthly'
+  if (interval === 'Years'  && every === '1') return 'Yearly'
+  if (interval === 'Months' && every === '3') return 'Quarterly'
+  return 'Custom'
+}
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -51,7 +55,6 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 }
 
 interface ExpenseForm {
-  vehicleId: string
   expenseCategory: string
   cost: string
   date: string
@@ -63,67 +66,66 @@ interface ExpenseForm {
   recurrenceEndDate: string
 }
 
-export default function CreateExpense() {
-  const navigate        = useNavigate()
-  const location        = useLocation()
-  const goBack          = () => location.key !== 'default' ? navigate(-1) : navigate('/expenses')
-  const amountRef       = useRef<HTMLInputElement>(null)
-  const invalidate      = useExpensesStore((s) => s.invalidate)
-  const { currency }    = useCurrencyStore()
+export default function EditExpense() {
+  const { expenseId } = useParams()
+  const navigate      = useNavigate()
+  const location      = useLocation()
+  const goBack        = () => location.key !== 'default' ? navigate(-1) : navigate('/expenses')
+  const amountRef     = useRef<HTMLInputElement>(null)
+  const invalidate    = useExpensesStore((s) => s.invalidate)
+  const { currency }  = useCurrencyStore()
 
-  const [vehicles, setVehicles]               = useState<Vehicle[]>([])
-  const [form, setForm]                       = useState<ExpenseForm>({
-    vehicleId:          '',
-    expenseCategory:    '',
-    cost:               '',
-    date:               new Date().toISOString().split('T')[0],
-    description:        '',
-    notes:              '',
-    isRecurring:        false,
-    recurrenceInterval: 'Years',
-    recurrenceEvery:    '1',
-    recurrenceEndDate:  '',
-  })
-  const [freqPreset, setFreqPreset]           = useState<FreqPreset>('Yearly')
-  const [loadingVehicles, setLoadingVehicles] = useState(true)
-  const [saving, setSaving]                   = useState(false)
-  const [error, setError]                     = useState<string | null>(null)
+  const [form, setForm]         = useState<ExpenseForm | null>(null)
+  const [freqPreset, setFreqPreset] = useState<FreqPreset>('Yearly')
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
 
   useEffect(() => {
+    if (!expenseId) return
     let cancelled = false
-    dedupFetch('vehicles-list', () => getVehicles())
+    getGeneralExpenseById(expenseId)
       .then((res) => {
         if (cancelled) return
-        const list: Vehicle[] = Array.isArray(res.data) ? res.data : []
-        setVehicles(list)
-        if (list.length === 1) setForm((p) => ({ ...p, vehicleId: String(list[0].vehicleId) }))
+        const e = res.data as GeneralExpense
+        const interval = e.recurrenceInterval ?? 'Years'
+        const every    = e.recurrenceEvery != null ? String(e.recurrenceEvery) : '1'
+        setFreqPreset(e.isRecurring ? inferPreset(interval, every) : 'Yearly')
+        setForm({
+          expenseCategory:    e.expenseCategory ?? '',
+          cost:               e.cost != null ? String(parseFloat((e.cost * RATES[currency]).toFixed(2))) : '',
+          date:               e.date ? e.date.split('T')[0] : '',
+          description:        e.description ?? '',
+          notes:              e.notes ?? '',
+          isRecurring:        e.isRecurring ?? false,
+          recurrenceInterval: interval,
+          recurrenceEvery:    every,
+          recurrenceEndDate:  e.recurrenceEndDate ? e.recurrenceEndDate.split('T')[0] : '',
+        })
       })
-      .catch(() => { if (!cancelled) setError('Failed to load vehicles.') })
-      .finally(() => { if (!cancelled) setLoadingVehicles(false) })
+      .catch(() => { if (!cancelled) setError('Failed to load expense.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [expenseId])
 
   const set = (field: keyof ExpenseForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm((p) => ({ ...p, [field]: e.target.value }))
+      setForm((p) => p ? { ...p, [field]: e.target.value } : p)
 
   const applyPreset = (preset: FreqPreset) => {
     setFreqPreset(preset)
-    if (preset === 'Monthly')   setForm((p) => ({ ...p, recurrenceInterval: 'Months', recurrenceEvery: '1' }))
-    else if (preset === 'Yearly')    setForm((p) => ({ ...p, recurrenceInterval: 'Years',  recurrenceEvery: '1' }))
-    else if (preset === 'Quarterly') setForm((p) => ({ ...p, recurrenceInterval: 'Months', recurrenceEvery: '3' }))
+    if (preset === 'Monthly')        setForm((p) => p ? { ...p, recurrenceInterval: 'Months', recurrenceEvery: '1' } : p)
+    else if (preset === 'Yearly')    setForm((p) => p ? { ...p, recurrenceInterval: 'Years',  recurrenceEvery: '1' } : p)
+    else if (preset === 'Quarterly') setForm((p) => p ? { ...p, recurrenceInterval: 'Months', recurrenceEvery: '3' } : p)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!form.vehicleId)       { setError('Please select a vehicle.'); return }
-    if (!form.expenseCategory) { setError('Please select a category.'); return }
-    if (!form.cost)            { setError('Please enter an amount.'); return }
+    if (!form) return
     setError(null)
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
-        vehicleId:       parseInt(form.vehicleId, 10),
         expenseCategory: form.expenseCategory,
         cost:            toPLN(parseFloat(form.cost), currency),
         date:            new Date(form.date).toISOString(),
@@ -137,21 +139,23 @@ export default function CreateExpense() {
         body.recurrenceEndDate  = form.recurrenceEndDate
           ? new Date(form.recurrenceEndDate).toISOString()
           : null
+      } else {
+        body.recurrenceInterval = null
+        body.recurrenceEvery    = null
+        body.recurrenceEndDate  = null
       }
-      await createGeneralExpense(body)
+      await updateGeneralExpense(expenseId!, body)
       invalidate()
       goBack()
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to save expense.')
+      setError(msg ?? 'Failed to update expense.')
     } finally {
       setSaving(false)
     }
   }
 
-  if (loadingVehicles) return <PageShell><LoadingText /></PageShell>
-
-  const selectedVehicle = vehicles.find((v) => String(v.vehicleId) === form.vehicleId)
+  if (loading || !form) return <PageShell><LoadingText /></PageShell>
 
   return (
     <PageShell>
@@ -159,17 +163,7 @@ export default function CreateExpense() {
 
       {/* Header */}
       <div style={{ padding: '0 22px 16px' }}>
-        {selectedVehicle && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 6,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
-            color: 'var(--accent2)',
-          }}>
-            <DirectionsCarIcon sx={{ fontSize: 12 }} />
-            {selectedVehicle.brand} {selectedVehicle.model} {selectedVehicle.yearOfProduction}
-          </div>
-        )}
-        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>Add expense</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>Edit expense</div>
         <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>General car cost</div>
       </div>
 
@@ -249,7 +243,7 @@ export default function CreateExpense() {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setForm((p) => ({ ...p, expenseCategory: cat }))}
+                    onClick={() => setForm((p) => p ? { ...p, expenseCategory: cat } : p)}
                     style={{
                       display: 'flex', flexDirection: 'column' as const,
                       alignItems: 'center', justifyContent: 'center',
@@ -273,37 +267,6 @@ export default function CreateExpense() {
               })}
             </div>
           </div>
-
-          {/* Vehicle picker — multi-vehicle only */}
-          {vehicles.length > 1 && (
-            <div style={{
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 16, padding: 14, marginBottom: 12,
-            }}>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-                color: 'var(--text3)', textTransform: 'uppercase' as const,
-                letterSpacing: '0.14em', marginBottom: 8,
-              }}>
-                Vehicle
-              </div>
-              <select
-                value={form.vehicleId}
-                onChange={set('vehicleId')}
-                required
-                style={inputStyle}
-                onFocus={onFocus}
-                onBlur={onBlur}
-              >
-                <option value="">Select a vehicle...</option>
-                {vehicles.map((v) => (
-                  <option key={v.vehicleId} value={v.vehicleId}>
-                    {v.brand} {v.model} ({v.yearOfProduction})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Date + Description — side by side */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -370,7 +333,7 @@ export default function CreateExpense() {
             </div>
             <Toggle
               on={form.isRecurring}
-              onToggle={() => setForm((p) => ({ ...p, isRecurring: !p.isRecurring }))}
+              onToggle={() => setForm((p) => p ? { ...p, isRecurring: !p.isRecurring } : p)}
             />
           </div>
 
@@ -380,7 +343,6 @@ export default function CreateExpense() {
               border: '1px solid var(--border)', borderTop: 'none',
               borderRadius: '0 0 16px 16px', padding: '12px 16px 14px', marginBottom: 12,
             }}>
-              {/* Frequency preset chips */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: freqPreset === 'Custom' ? 12 : 0 }}>
                 {(['Monthly', 'Yearly', 'Quarterly', 'Custom'] as FreqPreset[]).map((p) => (
                   <button
@@ -475,7 +437,7 @@ export default function CreateExpense() {
         </div>
 
         <ActionButton type="submit" disabled={saving}>
-          {saving ? 'Saving...' : 'Save expense'}
+          {saving ? 'Saving...' : 'Save changes'}
         </ActionButton>
         <div style={{ height: 8 }} />
         <ActionButton variant="ghost" onClick={goBack}>Cancel</ActionButton>
