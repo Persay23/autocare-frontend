@@ -8,6 +8,7 @@ import type { FuelEntry } from '@/lib/types'
 import { LoadingText } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
+import { useCurrencyStore, formatMoney, RATES, SYMBOLS } from '@/features/currency/currencyStore'
 
 export default function FuelDetail() {
   const { vehicleId, entryId } = useParams()
@@ -40,10 +41,14 @@ export default function FuelDetail() {
     }
   }
 
+  const { currency } = useCurrencyStore()
+
   if (loading) return <PageShell><LoadingText /></PageShell>
   if (!entry) return <PageShell><div style={{ padding: 22, color: 'var(--text2)' }}>Entry not found.</div></PageShell>
-
   const pricePerL = entry.amount > 0 ? (entry.cost / entry.amount).toFixed(2) : null
+  const pricePerLDisplay = pricePerL != null
+    ? `${(parseFloat(pricePerL) * RATES[currency]).toFixed(2)} ${SYMBOLS[currency]}/L`
+    : '—'
   const formattedDate = new Date(entry.refillDate).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -85,15 +90,15 @@ export default function FuelDetail() {
 
         {/* Big cost */}
         <div style={{ fontSize: 38, fontWeight: 800, color: 'var(--accent3)', lineHeight: 1, marginBottom: 14 }}>
-          {entry.cost?.toLocaleString()} zł
+          {formatMoney(entry.cost ?? 0, currency)}
         </div>
 
         {/* Stat tiles */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
             { label: 'Litres',    value: `${entry.amount} L` },
-            { label: 'Per litre', value: pricePerL ? `${pricePerL} zł` : '—' },
-            { label: 'Total',     value: `${entry.cost?.toLocaleString()} zł`, accent: true },
+            { label: 'Per litre', value: pricePerLDisplay },
+            { label: 'Total',     value: formatMoney(entry.cost ?? 0, currency), accent: true },
           ].map(({ label, value, accent }) => (
             <div key={label} style={{
               background: 'var(--surface3)', border: '1px solid var(--border)',

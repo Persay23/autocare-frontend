@@ -5,7 +5,7 @@ import { getRecordsByVehicle } from '@/features/records/api'
 import { dedupFetch } from '@/lib/dedup'
 import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
 import { formatEnumLabel } from '@/lib/formatters'
-
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 import type { MaintenanceRecord } from '@/lib/types'
 
 type SortKey = 'newest' | 'oldest' | 'cost-desc' | 'cost-asc'
@@ -20,6 +20,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 export default function VehicleRecords() {
   const { vehicleId } = useParams()
   const navigate = useNavigate()
+  const { currency } = useCurrencyStore()
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -142,7 +143,7 @@ export default function VehicleRecords() {
         }}>
           <div style={{ padding: '12px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
-              {totalSpent.toLocaleString()} zł
+              {formatMoney(totalSpent, currency)}
             </div>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace",
@@ -164,7 +165,7 @@ export default function VehicleRecords() {
           </div>
           <div style={{ padding: '12px 0', textAlign: 'center' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--orange)' }}>
-              {thisMonthSpent.toLocaleString()} zł
+              {formatMoney(thisMonthSpent, currency)}
             </div>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace",

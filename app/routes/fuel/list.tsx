@@ -4,7 +4,7 @@ import { getFuelByVehicle } from '@/features/fuel/api'
 import { dedupFetch } from '@/lib/dedup'
 import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
 import { formatEnumLabel } from '@/lib/formatters'
-
+import { useCurrencyStore, formatMoney, RATES, SYMBOLS } from '@/features/currency/currencyStore'
 import type { FuelEntry } from '@/lib/types'
 
 type SortKey = 'newest' | 'oldest' | 'cost-desc' | 'litres-desc' | 'price-per-l'
@@ -22,6 +22,7 @@ function entryId(e: FuelEntry) { return e.liquidEntryId ?? e.fuelEntryId! }
 export default function VehicleFuel() {
   const { vehicleId } = useParams()
   const navigate = useNavigate()
+  const { currency } = useCurrencyStore()
   const [entries, setEntries] = useState<FuelEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -140,7 +141,7 @@ export default function VehicleFuel() {
             fontSize: 11, fontWeight: 700, cursor: 'pointer',
           }}
         >
-          + Log
+          + Add
         </button>
       </div>
 
@@ -163,7 +164,7 @@ export default function VehicleFuel() {
                 Total spent
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>
-                {totalSpent.toLocaleString()} zł
+                {formatMoney(totalSpent, currency)}
               </div>
             </div>
             <div style={{ padding: '14px 16px', textAlign: 'center' }}>
@@ -186,7 +187,7 @@ export default function VehicleFuel() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
             <div style={{ padding: '10px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>
-                {avgPerL != null ? `${avgPerL.toFixed(2)} zł` : '—'}
+                {avgPerL != null ? formatMoney(avgPerL, currency) : '—'}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
                 avg per L
@@ -202,7 +203,7 @@ export default function VehicleFuel() {
             </div>
             <div style={{ padding: '10px 0', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                {avgRefill != null ? `${avgRefill.toLocaleString()} zł` : '—'}
+                {avgRefill != null ? formatMoney(avgRefill, currency) : '—'}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
                 avg refill
@@ -325,7 +326,7 @@ export default function VehicleFuel() {
                   color: 'var(--text3)',
                   letterSpacing: '0.07em',
                 }}>
-                  {group.label} · {group.totalCost.toLocaleString()} ZŁ · {group.totalLitres} L
+                  {group.label} · {formatMoney(group.totalCost, currency)} · {group.totalLitres} L
                 </div>
                 {group.items.map((entry) => (
                   <FuelEntryRow
@@ -355,7 +356,9 @@ function FuelEntryRow({ entry, kmGap, onClick }: {
   kmGap: number | undefined
   onClick: () => void
 }) {
-  const pricePerL = entry.amount > 0 ? (entry.cost / entry.amount).toFixed(2) : null
+  const { currency } = useCurrencyStore()
+  const pricePerLPLN = entry.amount > 0 ? entry.cost / entry.amount : null
+  const pricePerL = pricePerLPLN != null ? (pricePerLPLN * RATES[currency]).toFixed(2) : null
   const shortDate = new Date(entry.refillDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
   const title = entry.notes ? `${entry.notes} · ${entry.amount} L` : `${entry.amount} L`
 
@@ -375,7 +378,7 @@ function FuelEntryRow({ entry, kmGap, onClick }: {
           {title}
         </div>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)' }}>
-          {pricePerL ? `${pricePerL} zł/L` : ''}
+          {pricePerL ? `${pricePerL} ${SYMBOLS[currency]}/L` : ''}
           {pricePerL && entry.mileage ? ' · ' : ''}
           {entry.mileage ? `${entry.mileage.toLocaleString()} km` : ''}
         </div>
@@ -383,7 +386,7 @@ function FuelEntryRow({ entry, kmGap, onClick }: {
 
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent3)' }}>
-          {entry.cost?.toLocaleString()} zł
+          {formatMoney(entry.cost, currency)}
         </div>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
           {shortDate}{kmGap != null ? ` · +${kmGap.toLocaleString()} km` : ''}

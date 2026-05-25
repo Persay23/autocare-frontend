@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useOutletContext, useNavigate, useParams } from 'react-router-dom'
 import BarChart from '@/ui/BarChart'
-import { getVehicleCostSummary } from '@/features/expenses/api'
+import ActionButton from '@/ui/ActionButton'
+import { getVehicleCostSummary, getGeneralExpensesByVehicle } from '@/features/expenses/api'
 import { getRecordsByVehicle } from '@/features/records/api'
 import { getPredictionsByVehicle } from '@/features/predictions/api'
 import { deleteVehicle } from '@/features/vehicles/api'
@@ -12,11 +13,24 @@ import { PRESET_GROUPS } from '@/lib/presetComponents'
 import { COMPONENT_DEFAULTS } from '@/lib/componentDefaults'
 import { formatEnumLabel } from '@/lib/formatters'
 import { toConfidencePercent } from '@/lib/confidenceUtils'
+import { healthPctToState } from '@/lib/healthState'
 
-import type { ComponentHealth, MonthlyCostSummary, Prediction } from '@/lib/types'
+import type { ComponentHealth, GeneralExpense, MonthlyCostSummary, Prediction } from '@/lib/types'
 import type { VehicleLayoutContext } from './layout'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
-interface BarChartPoint { label: string; maintenance: number; fuel: number }
+interface BarChartPoint { label: string; maintenance: number; fuel: number; general?: number }
+
+const OVERVIEW_CATEGORY_EMOJI: Record<string, string> = {
+  Insurance:   '🛡️',
+  Tax:         '💰',
+  Parking:     '🅿️',
+  Tolls:       '🛣️',
+  Fines:       '📜',
+  CarWash:     '🫧',
+  Accessories: '🔧',
+  Other:       '📦',
+}
 
 const STATE_ORDER = ['Perfect', 'Good', 'Normal', 'Repair', 'Critical', 'Unknown'] as const
 const STATE_COLORS: Record<string, string> = {
@@ -56,23 +70,23 @@ function HealthRing({ health }: { health: ComponentHealth[] | null | undefined }
 
   const total = health.length
   const counts = health.reduce<Record<string, number>>((acc, c) => {
-    acc[c.currentState] = (acc[c.currentState] ?? 0) + 1
+    const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+    acc[state] = (acc[state] ?? 0) + 1
     return acc
   }, {})
   const avg = Math.round(
     health.reduce((sum, c) => sum + Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0), 0) / total
   )
 
-  let cumulative = 0
   const stops = STATE_ORDER
     .filter((s) => counts[s])
-    .map((s) => {
-      const pct = ((counts[s] ?? 0) / total) * 100
-      const from = cumulative
-      cumulative += pct
-      return `${STATE_COLORS[s]} ${from}% ${cumulative}%`
-    })
-    .join(', ')
+    .reduce<{ parts: string[]; sum: number }>(
+      ({ parts, sum }, s) => {
+        const pct = ((counts[s] ?? 0) / total) * 100
+        return { parts: [...parts, `${STATE_COLORS[s]} ${sum}% ${sum + pct}%`], sum: sum + pct }
+      },
+      { parts: [], sum: 0 }
+    ).parts.join(', ')
 
   return (
     <div style={{
@@ -101,10 +115,13 @@ export default function VehicleOverview() {
   const { vehicleId } = useParams()
   const navigate = useNavigate()
   const invalidate = useVehiclesStore((s) => s.invalidate)
+  const { currency } = useCurrencyStore()
 
   const [costData, setCostData] = useState<BarChartPoint[]>([])
   const [recordCount, setRecordCount] = useState<number | null>(null)
   const [nextPrediction, setNextPrediction] = useState<Prediction | null>(null)
+  const [recentExpenses, setRecentExpenses] = useState<GeneralExpense[]>([])
+  const [expensesExpanded, setExpensesExpanded] = useState(false)
   const [settingUp, setSettingUp] = useState(false)
   const [selectedPresets, setSelectedPresets] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -113,6 +130,7 @@ export default function VehicleOverview() {
 
   useEffect(() => {
     if (!vehicle?.vehicleId) return
+    if (String(vehicle.vehicleId) !== vehicleId) return
     let cancelled = false
 
     const to = new Date()
@@ -125,15 +143,36 @@ export default function VehicleOverview() {
       ),
       dedupFetch(`records-${vehicleId}`, () => getRecordsByVehicle(vehicleId!)),
       dedupFetch(`predictions-${vehicleId}`, () => getPredictionsByVehicle(vehicleId!)),
-    ]).then(([costRes, recordsRes, predsRes]) => {
+      dedupFetch(`ge-${vehicle.vehicleId}`, () => getGeneralExpensesByVehicle(vehicle.vehicleId)),
+    ]).then(([costRes, recordsRes, predsRes, geRes]) => {
       if (cancelled) return
       if (costRes.status === 'fulfilled') {
         const raw: MonthlyCostSummary[] = Array.isArray(costRes.value.data) ? costRes.value.data : []
-        setCostData(raw.map((item) => ({
-          label: new Date(item.month).toLocaleDateString('en-GB', { month: 'short' }),
-          maintenance: item.maintenanceCost ?? 0,
-          fuel: item.fuelCost ?? 0,
-        })))
+
+        // Build month → general expenses total map
+        const geByMonth: Record<string, number> = {}
+        if (geRes.status === 'fulfilled' && Array.isArray(geRes.value.data)) {
+          const geData = geRes.value.data as GeneralExpense[]
+          for (const e of geData) {
+            const key = e.date.slice(0, 7) // YYYY-MM
+            geByMonth[key] = (geByMonth[key] ?? 0) + (e.cost ?? 0)
+          }
+          setRecentExpenses(
+            geData
+              .filter((e) => !e.isRecurring)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          )
+        }
+
+        setCostData(raw.map((item) => {
+          const key = item.month.slice(0, 7)
+          return {
+            label:       new Date(item.month).toLocaleDateString('en-GB', { month: 'short' }),
+            maintenance: item.maintenanceCost ?? 0,
+            fuel:        item.fuelCost ?? 0,
+            general:     geByMonth[key] ?? 0,
+          }
+        }))
       }
       if (recordsRes.status === 'fulfilled') {
         setRecordCount(Array.isArray(recordsRes.value.data) ? recordsRes.value.data.length : 0)
@@ -142,7 +181,11 @@ export default function VehicleOverview() {
         const preds: Prediction[] = Array.isArray(predsRes.value.data) ? predsRes.value.data : []
         const next = preds
           .filter((p) => p.status === 'Active')
-          .sort((a, b) => new Date(a.predictedServiceDate).getTime() - new Date(b.predictedServiceDate).getTime())[0] ?? null
+          .sort((a, b) => {
+            const da = a.suggestedByDate ? new Date(a.suggestedByDate).getTime() : Infinity
+            const db = b.suggestedByDate ? new Date(b.suggestedByDate).getTime() : Infinity
+            return da - db
+          })[0] ?? null
         setNextPrediction(next)
       }
     })
@@ -151,16 +194,23 @@ export default function VehicleOverview() {
 
   if (!vehicle) return null
 
-  const totalSpent = costData.reduce((sum, item) => sum + item.maintenance + item.fuel, 0)
+  const totalSpent = costData.reduce((sum, item) => sum + item.maintenance + item.fuel + (item.general ?? 0), 0)
 
   const counts = (health ?? []).reduce<Record<string, number>>((acc, c) => {
-    acc[c.currentState] = (acc[c.currentState] ?? 0) + 1
+    const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+    acc[state] = (acc[state] ?? 0) + 1
     return acc
   }, {})
 
-  const attnComponents = (health ?? []).filter(
-    (c) => c.currentState === 'Critical' || c.currentState === 'Repair'
-  )
+  const attnComponents = (health ?? []).filter((c) => {
+    const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+    return state === 'Critical' || state === 'Repair'
+  })
+
+  const criticalCount = attnComponents.filter((c) =>
+    healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0)) === 'Critical'
+  ).length
+  const repairCount = attnComponents.length - criticalCount
 
   const togglePreset = (type: string) =>
     setSelectedPresets((prev) => prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type])
@@ -189,7 +239,7 @@ export default function VehicleOverview() {
             vehicleComponentBrand: null,
             state: 'Good',
             installationDate: new Date().toISOString(),
-            currentMileage: 0,
+            installedAtVehicleMileage: 0,
             expectedLifetimeKm: defaults.lifetimeKm,
             expectedLifetimeYears: defaults.lifetimeYears,
             notes: null,
@@ -215,19 +265,70 @@ export default function VehicleOverview() {
           borderRadius: 12,
           padding: '12px 14px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--orange)' }}>
-              {attnComponents.length} component{attnComponents.length > 1 ? 's' : ''} need attention
-            </span>
+          {/* Header row: title left, counts right */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--orange)' }}>
+                {attnComponents.length} component{attnComponents.length > 1 ? 's' : ''} need attention
+              </span>
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, flexShrink: 0 }}>
+              {criticalCount > 0 && (
+                <span style={{ color: 'var(--red)' }}>{criticalCount} critical</span>
+              )}
+              {criticalCount > 0 && repairCount > 0 && (
+                <span style={{ color: 'var(--text3)' }}> · </span>
+              )}
+              {repairCount > 0 && (
+                <span style={{ color: 'var(--orange)' }}>{repairCount} repair</span>
+              )}
+            </div>
           </div>
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 10, color: 'var(--text2)', marginTop: 6,
-          }}>
-            {attnComponents
-              .map((c) => `${c.vehicleComponentName ?? formatEnumLabel(c.componentType)} (${c.currentState})`)
-              .join(' · ')}
+
+          {/* Chips — max 4 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {attnComponents.slice(0, 4).map((c) => {
+              const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+              const isCritical = state === 'Critical'
+              return (
+                <div
+                  key={c.componentId}
+                  onClick={() => navigate(`/vehicles/${vehicleId}/components/${c.componentId}`)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                    background: isCritical ? 'rgba(248,113,113,0.12)' : 'rgba(251,146,60,0.12)',
+                    border: `1px solid ${isCritical ? 'rgba(248,113,113,0.3)' : 'rgba(251,146,60,0.3)'}`,
+                  }}
+                >
+                  <div style={{
+                    width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                    background: isCritical ? 'var(--red)' : 'var(--orange)',
+                  }} />
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10, fontWeight: 600,
+                    color: isCritical ? 'var(--red)' : 'var(--orange)',
+                  }}>
+                    {c.vehicleComponentName ?? formatEnumLabel(c.componentType)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* View all link */}
+          <div
+            onClick={() => navigate(`/vehicles/${vehicleId}/components`)}
+            style={{ marginTop: 10, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, fontWeight: 600, color: 'var(--accent)',
+            }}>
+              → View all in Components
+            </span>
           </div>
         </div>
       )}
@@ -373,7 +474,7 @@ export default function VehicleOverview() {
       }}>
         <div style={{ padding: '12px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
-            {totalSpent.toLocaleString()} zł
+            {formatMoney(totalSpent, currency)}
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
             all time
@@ -428,18 +529,20 @@ export default function VehicleOverview() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
-                {formatEnumLabel(nextPrediction.componentType)} service
+                {nextPrediction.title}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text2)' }}>
-                {formatEnumLabel(nextPrediction.componentType)} · {toConfidencePercent(nextPrediction.confidenceScore)}% confidence
+                {nextPrediction.componentName ?? nextPrediction.urgency}
               </div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)' }}>
-                {new Date(nextPrediction.predictedServiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                {nextPrediction.suggestedByDate
+                  ? new Date(nextPrediction.suggestedByDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                  : nextPrediction.urgency}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                {relativeDay(nextPrediction.predictedServiceDate)}
+                {nextPrediction.suggestedByDate ? relativeDay(nextPrediction.suggestedByDate) : ''}
               </div>
             </div>
           </div>
@@ -451,8 +554,96 @@ export default function VehicleOverview() {
         <BarChart data={costData} sectionLabel="SPENT THIS YEAR" />
       )}
 
-      {/* Delete vehicle */}
-      <div style={{ padding: '10px 22px 32px' }}>
+      {/* Recent one-off expenses */}
+      {recentExpenses.length > 0 && (
+        <div style={{ margin: '0 16px 12px' }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 9, color: 'var(--text3)',
+            textTransform: 'uppercase', letterSpacing: '0.1em',
+            marginBottom: 8,
+          }}>
+            Recent Expenses
+          </div>
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 12, overflow: 'hidden',
+              maxHeight: !expensesExpanded && recentExpenses.length > 2 ? 150 : undefined,
+            }}>
+              {recentExpenses.map((expense, i) => {
+                const emoji = OVERVIEW_CATEGORY_EMOJI[expense.expenseCategory] ?? '💳'
+                const date = new Date(expense.date).toLocaleDateString('en-GB', {
+                  day: '2-digit', month: 'short', year: 'numeric',
+                })
+                return (
+                  <div
+                    key={expense.generalExpenseId}
+                    onClick={() => navigate(`/expenses/${expense.generalExpenseId}`)}
+                    style={{
+                      padding: '10px 12px', cursor: 'pointer',
+                      borderBottom: i < recentExpenses.length - 1 ? '1px solid var(--border)' : 'none',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                        {emoji} {formatEnumLabel(expense.expenseCategory)}
+                      </div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
+                        {date}
+                        {expense.description && (
+                          <> · <span style={{ color: 'var(--text2)' }}>{expense.description}</span></>
+                        )}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 12, fontWeight: 700, color: 'var(--accent4)',
+                      flexShrink: 0, marginLeft: 8,
+                    }}>
+                      {formatMoney(expense.cost, currency)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {!expensesExpanded && recentExpenses.length > 2 && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, height: 48,
+                background: 'linear-gradient(to bottom, transparent, var(--surface))',
+                borderRadius: '0 0 12px 12px',
+                pointerEvents: 'none',
+              }} />
+            )}
+          </div>
+
+          {recentExpenses.length > 2 && (
+            <button
+              onClick={() => setExpensesExpanded((p) => !p)}
+              style={{
+                marginTop: 6, width: '100%',
+                background: 'none', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '6px 0',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9, fontWeight: 600, color: 'var(--text3)',
+                cursor: 'pointer',
+                textTransform: 'uppercase' as const, letterSpacing: '0.1em',
+              }}
+            >
+              {expensesExpanded ? '▲ Show less' : `▼ Show all ${recentExpenses.length}`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Edit / Delete vehicle */}
+      <ActionButton variant="ghost" onClick={() => navigate(`/vehicles/${vehicleId}/edit`)}>
+        Edit Vehicle
+      </ActionButton>
+      <div style={{ height: 8 }} />
+      <div style={{ padding: '0 22px 32px' }}>
         {!confirmDelete ? (
           <button
             onClick={() => setConfirmDelete(true)}

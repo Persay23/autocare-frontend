@@ -11,6 +11,7 @@ import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
 import { SERVICE_ICONS } from '@/lib/icons'
 import { formatEnumLabel } from '@/lib/formatters'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
 export default function RecordDetail() {
   const { vehicleId, recordId } = useParams()
@@ -60,9 +61,10 @@ export default function RecordDetail() {
     }
   }
 
+  const { currency } = useCurrencyStore()
+
   if (loading) return <PageShell><LoadingText /></PageShell>
   if (!record) return <PageShell><div style={{ padding: 22, color: 'var(--text2)' }}>Record not found.</div></PageShell>
-
   const RecordIcon = SERVICE_ICONS[record.serviceType] ?? SERVICE_ICONS.Other
   const formattedType = formatEnumLabel(record.serviceType)
 
@@ -117,7 +119,7 @@ export default function RecordDetail() {
         {record.cost > 0 && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent3)', lineHeight: 1 }}>
-              {record.cost.toLocaleString()} zł
+              {formatMoney(record.cost, currency)}
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 3 }}>
               total
@@ -365,7 +367,7 @@ export default function RecordDetail() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     {c.totalCost != null && (
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent3)' }}>
-                        {c.totalCost.toLocaleString()} zł
+                        {formatMoney(c.totalCost, currency)}
                       </span>
                     )}
                     <span style={{
@@ -444,7 +446,7 @@ export default function RecordDetail() {
                                   {label}
                                 </div>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                                  {val?.toLocaleString()} zł
+                                  {val != null ? formatMoney(val, currency) : ''}
                                 </div>
                               </div>
                             ))}

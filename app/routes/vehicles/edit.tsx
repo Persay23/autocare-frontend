@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import ActionButton from '@/ui/ActionButton'
-import { createVehicle } from '@/features/vehicles/api'
+import { getVehicleById, updateVehicle } from '@/features/vehicles/api'
 import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
-import { ErrorBanner } from '@/ui/AsyncStates'
+import { LoadingText, ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
 import { FUEL_TYPES, TRANSMISSION_TYPES, ENGINE_TYPES, VEHICLE_TYPES } from '@/lib/enums'
@@ -29,6 +29,13 @@ const ENGINE_EXT = ENGINE_TYPES.filter((t) => !ENGINE_PRI.includes(t))
 
 const VEHICLE_PRI = ['Sedan', 'Hatchback', 'SUV', 'Estate']
 const VEHICLE_EXT = VEHICLE_TYPES.filter((t) => !VEHICLE_PRI.includes(t))
+
+interface VehicleForm {
+  brand: string; model: string
+  yearOfProduction: string | number; mileage: string | number
+  fuelType: string; transmissionType: string
+  engineType: string; vehicleType: string
+}
 
 const fieldLabel = (text: string) => (
   <div style={{
@@ -69,49 +76,77 @@ function BigInput({ value, onChange, placeholder }: {
   )
 }
 
-export default function AddVehicle() {
+export default function EditVehicle() {
+  const { vehicleId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const goBack = () => location.key !== 'default' ? navigate(-1) : navigate('/carpark')
+  const goBack = () => location.key !== 'default' ? navigate(-1) : navigate(`/vehicles/${vehicleId}`)
   const invalidate = useVehiclesStore((s) => s.invalidate)
 
-  const [form, setForm] = useState({
-    brand: '', model: '',
-    yearOfProduction: '', mileage: '',
-    fuelType: 'Petrol95', transmissionType: 'Manual',
-    engineType: 'Petrol', vehicleType: 'Sedan',
-  })
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState<VehicleForm | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showMoreFuel, setShowMoreFuel] = useState(false)
   const [showMoreTrans, setShowMoreTrans] = useState(false)
   const [showMoreEngine, setShowMoreEngine] = useState(false)
   const [showMoreVehicle, setShowMoreVehicle] = useState(false)
 
+  useEffect(() => {
+    let cancelled = false
+    getVehicleById(vehicleId!)
+      .then((res) => {
+        if (cancelled) return
+        const v = res.data
+        setForm({
+          brand: v.brand ?? '',
+          model: v.model ?? '',
+          yearOfProduction: v.yearOfProduction ?? '',
+          mileage: v.mileage ?? '',
+          fuelType: v.fuelType ?? 'Petrol95',
+          transmissionType: v.transmissionType ?? 'Manual',
+          engineType: v.engineType ?? 'Petrol',
+          vehicleType: v.vehicleType ?? 'Sedan',
+        })
+      })
+      .catch(() => { if (!cancelled) setError('Failed to load vehicle.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [vehicleId])
+
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+    setForm((prev) => prev ? { ...prev, [field]: e.target.value } : prev)
   const pick = (field: string) => (v: string) =>
-    setForm((prev) => ({ ...prev, [field]: v }))
+    setForm((prev) => prev ? { ...prev, [field]: v } : prev)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!form) return
     setError(null)
-    setLoading(true)
+    setSaving(true)
     try {
-      await createVehicle({
-        ...form,
-        yearOfProduction: Number.parseInt(form.yearOfProduction, 10),
-        mileage: Number.parseInt(form.mileage, 10),
+      await updateVehicle(vehicleId!, {
+        brand: form.brand,
+        model: form.model,
+        yearOfProduction: Number.parseInt(String(form.yearOfProduction), 10),
+        mileage: Number.parseInt(String(form.mileage), 10),
+        fuelType: form.fuelType,
+        transmissionType: form.transmissionType,
+        engineType: form.engineType,
+        vehicleType: form.vehicleType,
       })
       invalidate()
       goBack()
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to add vehicle.')
+      setError(msg ?? 'Failed to update vehicle.')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
+
+  if (loading) return <PageShell><LoadingText /></PageShell>
+  if (!form) return <PageShell><div style={{ padding: 22, color: 'var(--text2)' }}>Vehicle not found.</div></PageShell>
 
   const chip = (active: boolean): React.CSSProperties => ({
     padding: '8px 13px', borderRadius: 999,
@@ -145,9 +180,8 @@ export default function AddVehicle() {
     )
   }
 
-  const heroName = [form.brand, form.model].filter(Boolean).join(' ') || 'New Vehicle'
   const heroSub = [
-    form.yearOfProduction || null,
+    form.yearOfProduction ? String(form.yearOfProduction) : null,
     form.fuelType ? eLabel(form.fuelType) : null,
     form.transmissionType ? eLabel(form.transmissionType) : null,
   ].filter(Boolean).join(' · ')
@@ -166,7 +200,7 @@ export default function AddVehicle() {
 
   return (
     <PageShell>
-      <button onClick={goBack} style={backBtnStyle}>← Car Park</button>
+      <button onClick={goBack} style={backBtnStyle}>← Back</button>
 
       {/* Hero */}
       <div style={{ padding: '4px 22px 20px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -179,17 +213,15 @@ export default function AddVehicle() {
         </div>
         <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
           <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)', marginBottom: 2 }}>
-            {heroName}
+            {form.brand} {form.model}
           </div>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: heroSub ? 'var(--text2)' : 'var(--text3)', marginBottom: 6,
+            color: 'var(--text2)', marginBottom: 6,
           }}>
-            {heroSub || 'Fill in the details below'}
+            {heroSub}
           </div>
-          <span style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)',
-          }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
             □ Add photo
           </span>
         </div>
@@ -264,8 +296,8 @@ export default function AddVehicle() {
 
         <div style={{ height: 20 }} />
 
-        <ActionButton type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Add Vehicle'}
+        <ActionButton type="submit" disabled={saving}>
+          {saving ? 'Saving...' : 'Save changes'}
         </ActionButton>
         <div style={{ height: 8 }} />
         <ActionButton variant="ghost" onClick={goBack}>Cancel</ActionButton>
