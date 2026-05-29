@@ -13,6 +13,8 @@ import { formatEnumLabel } from '@/lib/formatters'
 import { COMPONENT_ICONS } from '@/lib/icons'
 import logo from '@/assets/Logo.png'
 import type { TimelineEvent } from '@/lib/types'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
+import { healthPctToState } from '@/lib/healthState'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import BuildIcon from '@mui/icons-material/Build'
 import AddCardIcon from '@mui/icons-material/AddCard'
@@ -44,6 +46,7 @@ function relativeDay(dateStr: string): string {
 export default function Home() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { currency } = useCurrencyStore()
 
   const { vehicles, healthMap, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
   const { eventsByVehicle, loading: timelineLoading, fetchAll: fetchTimeline } = useTimelineStore()
@@ -97,16 +100,23 @@ export default function Home() {
         .map((p) => ({ prediction: p, vehicleName: `${v.brand} ${v.model}` }))
     )
     return candidates.sort(
-      (a, b) =>
-        new Date(a.prediction.predictedServiceDate).getTime() -
-        new Date(b.prediction.predictedServiceDate).getTime()
+      (a, b) => {
+        const da = a.prediction.suggestedByDate ? new Date(a.prediction.suggestedByDate).getTime() : Infinity
+        const db = b.prediction.suggestedByDate ? new Date(b.prediction.suggestedByDate).getTime() : Infinity
+        return da - db
+      }
     )[0] ?? null
   })()
 
   const allComponents = Object.values(healthMap).flat()
-  const alerts = allComponents.filter((c) =>
-    c.currentState === 'Critical' || c.currentState === 'Repair'
-  )
+
+  const getDerivedState = (c: typeof allComponents[number]) =>
+    healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+
+  const alerts = allComponents.filter((c) => {
+    const s = getDerivedState(c)
+    return s === 'Critical' || s === 'Repair'
+  })
 
   const currentMonthKey = new Date().toISOString().slice(0, 7)
   const thisMonthSpend = Object.values(summaries)
@@ -116,7 +126,7 @@ export default function Home() {
 
   const topAlert = [...alerts].sort((a, b) => {
     const order: Record<string, number> = { Critical: 0, Repair: 1 }
-    return (order[a.currentState] ?? 2) - (order[b.currentState] ?? 2)
+    return (order[getDerivedState(a)] ?? 2) - (order[getDerivedState(b)] ?? 2)
   })[0] ?? null
 
   const topAlertVehicle = topAlert
@@ -171,7 +181,7 @@ export default function Home() {
                 THIS MONTH
               </div>
               <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-                {thisMonthSpend > 0 ? `${thisMonthSpend.toLocaleString()} zł` : '—'}
+                {thisMonthSpend > 0 ? formatMoney(thisMonthSpend, currency) : '—'}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 3 }}>
                 Subtotal
@@ -201,7 +211,7 @@ export default function Home() {
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
-                  {topAlert.currentState}{topAlertVehicle ? ` · ${topAlertVehicle.brand} ${topAlertVehicle.model}` : ''}
+                  {getDerivedState(topAlert)}{topAlertVehicle ? ` · ${topAlertVehicle.brand} ${topAlertVehicle.model}` : ''}
                 </div>
               </div>
             ) : (
@@ -240,10 +250,10 @@ export default function Home() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                  {formatEnumLabel(nextService.prediction.componentType)} service
+                  {nextService.prediction.title}
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: 'var(--orange)' }}>
-                  {relativeDay(nextService.prediction.predictedServiceDate)}
+                  {nextService.prediction.suggestedByDate ? relativeDay(nextService.prediction.suggestedByDate) : nextService.prediction.urgency}
                 </div>
               </div>
             </div>
@@ -262,12 +272,13 @@ export default function Home() {
           }}>
             Needs Attention · {alerts.length} component{alerts.length > 1 ? 's' : ''}
           </div>
-          {alerts.map((c) => {
+          {alerts.slice(0, 3).map((c) => {
             const vehicle = vehicles.find((v) =>
               healthMap[v.vehicleId]?.some((h) => h.componentId === c.componentId)
             )
             const healthPct = Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0)
-            const attnStyle = ATTENTION_STYLE[c.currentState]
+            const derivedState = getDerivedState(c)
+            const attnStyle = ATTENTION_STYLE[derivedState]
             const CI = COMPONENT_ICONS[c.componentType] ?? COMPONENT_ICONS.Other
             const displayName = c.vehicleComponentName || formatEnumLabel(c.componentType)
             const subtitle = [
@@ -311,7 +322,7 @@ export default function Home() {
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700,
                     color: attnStyle?.labelColor ?? 'var(--text2)', flexShrink: 0,
                   }}>
-                    {c.currentState}
+                    {derivedState}
                   </span>
                 </div>
                 <HealthBar percent={healthPct} />
@@ -324,6 +335,19 @@ export default function Home() {
               </div>
             )
           })}
+          {alerts.length > 3 && (
+            <button
+              onClick={() => navigate('/carpark')}
+              style={{
+                width: '100%', padding: '9px 0', borderRadius: 10,
+                background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)',
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+                color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.05em',
+              }}
+            >
+              See {alerts.length - 3} more →
+            </button>
+          )}
         </div>
       )}
 

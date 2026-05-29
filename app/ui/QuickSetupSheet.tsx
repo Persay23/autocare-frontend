@@ -47,7 +47,7 @@ export default function QuickSetupSheet({ vehicleId, existingTypes, onClose, onC
           vehicleComponentBrand: null,
           state: 'Good',
           installationDate: new Date().toISOString(),
-          currentMileage: 0,
+          installedAtVehicleMileage: 0,
           expectedLifetimeKm: defaults.lifetimeKm,
           expectedLifetimeYears: defaults.lifetimeYears,
           notes: null,

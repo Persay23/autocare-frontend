@@ -7,10 +7,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import { inputStyle, onFocus, onBlur } from './formStyles'
 
 interface Props {
-  /** Called with the captured File when camera/upload is used. No-op until AI is connected. */
   onCapture?: (file: File) => void
-  /** Called with the raw text when text mode is submitted. No-op until AI is connected. */
   onText?: (text: string) => void
+  title?: string
+  subtitle?: string
 }
 
 type CapturedState =
@@ -35,7 +35,7 @@ const optionBtnStyle = (active: boolean): React.CSSProperties => ({
   transition: 'all 0.15s',
 })
 
-export default function SmartFillButton({ onCapture, onText }: Props) {
+export default function SmartFillButton({ onCapture, onText, title, subtitle }: Props) {
   const uid = useId()
   const cameraId = `${uid}-camera`
   const uploadId = `${uid}-upload`
@@ -69,53 +69,43 @@ export default function SmartFillButton({ onCapture, onText }: Props) {
 
   // ── Closed ────────────────────────────────────────────────────────────────
   if (!open) {
+    const accent = captured ? 'var(--green)' : 'var(--accent)'
+    const accentAlpha = captured ? 'rgba(52,211,153,' : 'rgba(108,99,255,'
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
         style={{
-          width: '100%',
-          padding: '11px 14px',
-          borderRadius: 12,
-          background: captured
-            ? 'linear-gradient(135deg, rgba(52,211,153,0.08), rgba(56,189,248,0.08))'
-            : 'linear-gradient(135deg, rgba(108,99,255,0.07), rgba(79,143,255,0.07))',
-          border: captured
-            ? '1px dashed rgba(52,211,153,0.5)'
-            : '1px dashed rgba(108,99,255,0.35)',
-          color: captured ? 'var(--green)' : 'var(--accent)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          marginBottom: 14,
+          width: '100%', padding: '12px 14px', borderRadius: 14,
+          background: `${accentAlpha}0.07)`,
+          border: `1px solid ${accentAlpha}0.25)`,
+          display: 'flex', alignItems: 'center', gap: 12,
+          cursor: 'pointer', marginBottom: 16, textAlign: 'left',
           transition: 'all 0.2s',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AutoAwesomeIcon sx={{ fontSize: 15 }} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>
-            {captured ? 'Input captured' : 'AI Quick Fill'}
-          </span>
-          {captured && (
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 9,
-              color: 'var(--text3)',
-              fontWeight: 400,
-            }}>
-              · {captured.kind === 'file' ? captured.name : captured.preview}
-            </span>
-          )}
+        <div style={{
+          width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+          background: `${accentAlpha}0.18)`,
+          border: `1px solid ${accentAlpha}0.3)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <AutoAwesomeIcon sx={{ fontSize: 18, color: accent }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: captured ? 'var(--green)' : 'var(--text)', marginBottom: 2 }}>
+            {captured ? 'Input captured' : (title ?? 'AI Quick Fill')}
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
+            {captured
+              ? (captured.kind === 'file' ? captured.name : captured.preview)
+              : (subtitle ?? 'Scan receipt to autofill')}
+          </div>
         </div>
         <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 8,
-          background: captured ? 'rgba(52,211,153,0.15)' : 'rgba(108,99,255,0.15)',
-          padding: '2px 7px',
-          borderRadius: 4,
-          letterSpacing: '0.1em',
-          flexShrink: 0,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 8,
+          background: `${accentAlpha}0.15)`, color: accent,
+          padding: '2px 7px', borderRadius: 4, letterSpacing: '0.1em', flexShrink: 0,
         }}>
           {captured ? 'READY' : 'BETA'}
         </span>

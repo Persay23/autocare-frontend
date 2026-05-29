@@ -4,6 +4,8 @@ import Home           from './global/home'
 import CarPark        from './global/carpark'
 import Expenses       from './global/expenses/list'
 import CreateExpense  from './global/expenses/create'
+import ExpenseDetail  from './global/expenses/detail'
+import EditExpense    from './global/expenses/edit'
 import Timeline       from './global/timeline'
 import Profile        from './global/profile'
 import CreateRecord    from './records/create'
@@ -17,6 +19,8 @@ export const globalRoutes: RouteObject[] = [
       { path: '/carpark',      element: <CarPark /> },
       { path: '/expenses',     element: <Expenses /> },
       { path: '/expenses/new', element: <CreateExpense /> },
+      { path: '/expenses/:expenseId', element: <ExpenseDetail /> },
+      { path: '/expenses/:expenseId/edit', element: <EditExpense /> },
       { path: '/timeline',     element: <Timeline /> },
       { path: '/profile',      element: <Profile /> },
       { path: '/records/new',  element: <CreateRecord /> },

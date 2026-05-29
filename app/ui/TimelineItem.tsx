@@ -1,6 +1,7 @@
 import { type ElementType } from 'react'
 import type { TimelineEvent } from '@/lib/types'
 import { TIMELINE_ICONS } from '@/lib/icons'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
 interface TimelineItemProps {
   event: TimelineEvent
@@ -14,16 +15,18 @@ interface TimelineItemProps {
 const DOT_STYLES: Record<string, { borderColor: string; bg: string }> = {
   Maintenance: { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
   Service:     { borderColor: 'var(--accent)',  bg: 'rgba(108,99,255,0.12)' },
-  Fuel:        { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
-  Liquid:      { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
+  Fuel:        { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
+  Liquid:      { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
+  Expense:     { borderColor: 'var(--accent4)', bg: 'rgba(56,189,248,0.12)' },
   Other:       { borderColor: 'var(--orange)',  bg: 'rgba(251,146,60,0.12)' },
 }
 
 const AMOUNT_COLORS: Record<string, string> = {
   Maintenance: 'var(--accent)',
   Service:     'var(--accent)',
-  Fuel:        'var(--accent4)',
-  Liquid:      'var(--accent4)',
+  Fuel:        'var(--orange)',
+  Liquid:      'var(--orange)',
+  Expense:     'var(--accent4)',
   Other:       'var(--accent3)',
 }
 
@@ -35,6 +38,7 @@ function isJunk(desc: string | null | undefined): boolean {
 }
 
 export default function TimelineItem({ event, showVehicle, showDate, isDuplicate, onClick, isLast }: TimelineItemProps) {
+  const { currency } = useCurrencyStore()
   const dot        = DOT_STYLES[event.type]  ?? DOT_STYLES.Other
   const amountColor = AMOUNT_COLORS[event.type] ?? 'var(--accent3)'
   const DotIcon: ElementType = TIMELINE_ICONS[event.type] ?? TIMELINE_ICONS.Other
@@ -136,7 +140,7 @@ export default function TimelineItem({ event, showVehicle, showDate, isDuplicate
             color: junk ? 'var(--text3)' : amountColor,
             flexShrink: 0,
           }}>
-            {event.cost.toLocaleString()} zł
+            {formatMoney(event.cost, currency)}
           </div>
         )}
       </div>

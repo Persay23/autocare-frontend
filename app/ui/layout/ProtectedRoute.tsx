@@ -1,18 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/auth/useAuth'
 import DrivingSurveySheet from '@/ui/DrivingSurveySheet'
-import { loadProfile, saveProfile, markSkipped, hasSkipped } from '@/lib/drivingProfile'
+import { markSkipped, hasSkipped, clearSkipped } from '@/lib/drivingProfile'
 import type { DrivingProfile } from '@/lib/drivingProfile'
+import { useDrivingProfileStore } from '@/features/drivingProfile/drivingProfileStore'
 
 export default function ProtectedRoute() {
   const { user, loading } = useAuth()
+  const [showSurvey, setShowSurvey] = useState(false)
 
-  // Lazy initial state — only reads localStorage once user is known
-  const [showSurvey, setShowSurvey] = useState(() => {
-    if (!user) return false
-    return !loadProfile(user.id) && !hasSkipped(user.id)
-  })
+  const { fetch: fetchProfile, save: saveProfile, exists: profileExists, loadedFor } = useDrivingProfileStore()
+
+  // Trigger fetch — store deduplicates concurrent/duplicate calls
+  useEffect(() => {
+    if (!user || hasSkipped(user.id)) return
+    fetchProfile(user.id)
+  }, [user?.id, fetchProfile])
+
+  // Show survey once the fetch resolves and profile doesn't exist
+  useEffect(() => {
+    if (!user || loadedFor !== user.id) return
+    if (!profileExists && !hasSkipped(user.id)) setShowSurvey(true)
+  }, [loadedFor, profileExists, user?.id])
 
   if (loading) {
     return (
@@ -35,8 +45,13 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace />
   }
 
-  const handleComplete = (profile: DrivingProfile) => {
-    saveProfile(user.id, profile)
+  const handleComplete = async (profile: DrivingProfile) => {
+    try {
+      await saveProfile(user.id, profile, false)
+      clearSkipped(user.id)
+    } catch {
+      // proceed regardless
+    }
     setShowSurvey(false)
   }
 

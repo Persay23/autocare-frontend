@@ -1,12 +1,125 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ElementType } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import TimelineItem from '@/ui/TimelineItem'
 import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { useTimelineStore } from '@/features/timeline/timelineStore'
-import { useNavigate } from 'react-router-dom'
+import { useExpensesStore } from '@/features/expenses/expensesStore'
 import type { TimelineEvent } from '@/lib/types'
+import { TIMELINE_ICONS } from '@/lib/icons'
+import { formatEnumLabel } from '@/lib/formatters'
+import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
-type Category = 'All' | 'Service' | 'Fuel'
+const TYPE_COLOR: Record<string, string> = {
+  Maintenance: 'var(--accent)',
+  Service:     'var(--accent)',
+  Fuel:        'var(--orange)',
+  Liquid:      'var(--orange)',
+  Expense:     'var(--accent4)',
+  Other:       'var(--orange)',
+}
+
+function TimelineEventSheet({ event, onClose, onViewEntry }: { event: TimelineEvent; onClose: () => void; onViewEntry: () => void }) {
+  const { currency } = useCurrencyStore()
+  const Icon: ElementType = TIMELINE_ICONS[event.type] ?? TIMELINE_ICONS.Other
+  const color = TYPE_COLOR[event.type] ?? 'var(--orange)'
+  const dateStr = new Date(event.date).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+  })
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300 }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: 'var(--surface)', borderRadius: '20px 20px 0 0',
+        border: '1px solid var(--border)', borderBottom: 'none',
+        zIndex: 301, boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--border)' }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px 12px' }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+            background: `color-mix(in srgb, ${color} 15%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon sx={{ fontSize: 18, color }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{event.type}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+              {dateStr}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+              background: 'var(--surface2)', border: '1px solid var(--border)',
+              color: 'var(--text2)', fontSize: 14, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ height: 1, background: 'var(--border)' }} />
+
+        {/* Rows */}
+        <div style={{ padding: '14px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {event.description && event.description.trim() !== '' && (
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Description</div>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>{event.description}</div>
+            </div>
+          )}
+
+          {event.cost != null && event.cost > 0 && (
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cost</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color }}>{formatMoney(event.cost, currency)}</div>
+            </div>
+          )}
+
+          {event.vehicleName && (
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Vehicle</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 500 }}>{event.vehicleName}</div>
+            </div>
+          )}
+        </div>
+
+        {/* View Entry button */}
+        {event.relatedId && (
+          <div style={{ padding: '0 20px 28px' }}>
+            <button
+              onClick={onViewEntry}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', padding: '12px 16px', borderRadius: 12,
+                background: `color-mix(in srgb, ${color} 12%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+                color, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                fontFamily: "'Outfit', sans-serif",
+              }}
+            >
+              View Entry →
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+type Category = 'All' | 'Service' | 'Fuel' | 'Expense'
 
 function dayKey(dateStr: string): string {
   return new Date(dateStr).toDateString()
@@ -29,19 +142,22 @@ function abbrev(name: string | undefined | null): string | undefined {
 }
 
 export default function Timeline() {
-  const [selectedId, setSelectedId]   = useState<number | null>(null)
-  const [showFilter, setShowFilter]   = useState(false)
-  const [category, setCategory]       = useState<Category>('All')
-  const [showCategory, setShowCategory] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const navigate = useNavigate()
+  const { currency } = useCurrencyStore()
+  const [selectedId, setSelectedId]       = useState<number | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null)
+  const [showFilter, setShowFilter]       = useState(false)
+  const [category, setCategory]           = useState<Category>('All')
+  const [showCategory, setShowCategory]   = useState(false)
+  const [searchQuery, setSearchQuery]     = useState('')
   const filterRef   = useRef<HTMLDivElement>(null)
   const categoryRef = useRef<HTMLDivElement>(null)
-  const navigate    = useNavigate()
 
   const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
   const { eventsByVehicle, loading: timelineLoading, fetchAll }      = useTimelineStore()
+  const { generalExpenses, generalLoading, fetchGeneralExpenses }    = useExpensesStore()
 
-  const loading = vehiclesLoading || timelineLoading
+  const loading = vehiclesLoading || timelineLoading || generalLoading
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -56,18 +172,41 @@ export default function Timeline() {
 
   useEffect(() => {
     if (!vehicles.length) return
+    const vehicleIds = vehicles.map((v) => v.vehicleId)
     let cancelled = false
     fetchAll(vehicles).then(() => { if (cancelled) return })
+    fetchGeneralExpenses(vehicleIds)
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicles.length])
 
-  // Base: filter by vehicle, sort newest first
-  const baseEvents: TimelineEvent[] = (
+  // Map general expenses to timeline events
+  const expenseEvents: TimelineEvent[] = (
     selectedId
-      ? (eventsByVehicle[selectedId] ?? [])
-      : Object.values(eventsByVehicle).flat()
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      ? generalExpenses.filter((e) => e.vehicleId === selectedId)
+      : generalExpenses
+  ).map((e) => {
+    const vehicle = vehicles.find((v) => v.vehicleId === e.vehicleId)
+    return {
+      date:        e.date,
+      type:        'Expense',
+      description: formatEnumLabel(e.expenseCategory) + (e.description ? ` · ${e.description}` : ''),
+      cost:        e.cost,
+      vehicleId:   e.vehicleId,
+      vehicleName: vehicle ? `${vehicle.brand} ${vehicle.model}` : '',
+      relatedId:   e.generalExpenseId,
+    }
+  })
+
+  // Base: filter by vehicle, sort newest first — merge timeline + general expenses
+  const baseEvents: TimelineEvent[] = [
+    ...(
+      selectedId
+        ? (eventsByVehicle[selectedId] ?? [])
+        : Object.values(eventsByVehicle).flat()
+    ),
+    ...expenseEvents,
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   // Duplicate detection — same vehicle + same day + same type appearing more than once
   const dupSet = new Set<string>()
@@ -85,7 +224,9 @@ export default function Timeline() {
       ? baseEvents.filter((e) => e.type === 'Maintenance' || e.type === 'Service')
       : category === 'Fuel'
         ? baseEvents.filter((e) => e.type === 'Fuel' || e.type === 'Liquid')
-        : baseEvents
+        : category === 'Expense'
+          ? baseEvents.filter((e) => e.type === 'Expense')
+          : baseEvents
 
   // Search filter
   const filteredEvents = searchQuery.trim()
@@ -107,19 +248,10 @@ export default function Timeline() {
   const shownTotal = filteredEvents.reduce((sum, e) => sum + (e.cost ?? 0), 0)
 
   const handleEventClick = (event: TimelineEvent) => {
-    if (!event.vehicleId) return
-    if (event.type === 'Maintenance' || event.type === 'Service') {
-      navigate(event.relatedId
-        ? `/vehicles/${event.vehicleId}/records/${event.relatedId}`
-        : `/vehicles/${event.vehicleId}/records`)
-    } else if (event.type === 'Fuel') {
-      navigate(event.relatedId
-        ? `/vehicles/${event.vehicleId}/fuel/${event.relatedId}`
-        : `/vehicles/${event.vehicleId}/fuel`)
-    }
+    setSelectedEvent(event)
   }
 
-  const CATEGORY_LABELS: Category[] = ['All', 'Service', 'Fuel']
+  const CATEGORY_LABELS: Category[] = ['All', 'Service', 'Fuel', 'Expense']
 
   return (
     <PageShell>
@@ -268,7 +400,7 @@ export default function Timeline() {
               SHOWN TOTAL
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
-              {shownTotal.toLocaleString()} zł
+              {formatMoney(shownTotal, currency)}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -315,7 +447,7 @@ export default function Timeline() {
                 <TimelineItem
                   key={`${event.type}-${event.relatedId ?? i}`}
                   event={selectedId === null && event.vehicleName
-                    ? { ...event, vehicleName: abbrev(event.vehicleName) }
+                    ? { ...event, vehicleName: abbrev(event.vehicleName) ?? event.vehicleName }
                     : event
                   }
                   showVehicle={selectedId === null}
@@ -327,6 +459,27 @@ export default function Timeline() {
             </div>
           ))}
         </div>
+      )}
+
+      {selectedEvent && (
+        <TimelineEventSheet
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+          onViewEntry={() => {
+            const e = selectedEvent
+            setSelectedEvent(null)
+            if (!e.relatedId) return
+            if (e.type === 'Expense') {
+              navigate(`/expenses/${e.relatedId}`)
+            } else if (!e.vehicleId) {
+              // no-op — other types require vehicleId
+            } else if (e.type === 'Maintenance' || e.type === 'Service') {
+              navigate(`/vehicles/${e.vehicleId}/records/${e.relatedId}`)
+            } else if (e.type === 'Fuel' || e.type === 'Liquid') {
+              navigate(`/vehicles/${e.vehicleId}/fuel/${e.relatedId}`)
+            }
+          }}
+        />
       )}
     </PageShell>
   )

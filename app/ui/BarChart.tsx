@@ -2,6 +2,7 @@ interface BarChartDataPoint {
   label: string
   maintenance?: number
   fuel?: number
+  general?: number
 }
 
 interface BarChartProps {
@@ -10,11 +11,6 @@ interface BarChartProps {
   title?: string
   subtitle?: string
 }
-
-const LEGEND = [
-  { color: 'var(--accent3)', label: 'Service' },
-  { color: 'var(--orange)',  label: 'Fuel' },
-]
 
 const CHART_H = 90
 const Y_TICKS = 4
@@ -41,7 +37,18 @@ function fmtY(n: number): string {
 export default function BarChart({ data = [], sectionLabel, title, subtitle }: BarChartProps) {
   if (!data.length) return null
 
-  const maxIndividual = Math.max(...data.flatMap((d) => [d.maintenance ?? 0, d.fuel ?? 0]), 1)
+  const hasGeneral = data.some((d) => (d.general ?? 0) > 0)
+
+  const LEGEND = [
+    { color: 'var(--accent3)', label: 'Service' },
+    { color: 'var(--orange)',  label: 'Fuel' },
+    ...(hasGeneral ? [{ color: 'var(--accent4)', label: 'General' }] : []),
+  ]
+
+  const maxIndividual = Math.max(
+    ...data.flatMap((d) => [d.maintenance ?? 0, d.fuel ?? 0, d.general ?? 0]),
+    1,
+  )
   const scale = niceMax(maxIndividual)
   const ticks = Array.from({ length: Y_TICKS + 1 }, (_, i) => Math.round((scale / Y_TICKS) * i))
 
@@ -118,20 +125,20 @@ export default function BarChart({ data = [], sectionLabel, title, subtitle }: B
             {/* Grouped bars */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: '100%', position: 'relative', zIndex: 1 }}>
               {data.map((d) => {
-                const maint = d.maintenance ?? 0
-                const fuel  = d.fuel ?? 0
-                const maintH = (maint / scale) * 100
-                const fuelH  = (fuel  / scale) * 100
+                const maint   = d.maintenance ?? 0
+                const fuel    = d.fuel ?? 0
+                const general = d.general ?? 0
+                const maintH   = (maint   / scale) * 100
+                const fuelH    = (fuel    / scale) * 100
+                const generalH = (general / scale) * 100
                 return (
                   <div key={d.label} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 2, height: '100%' }}>
                     {/* Service bar */}
                     <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                       {maint > 0 && (
                         <div style={{
-                          height: `${maintH}%`,
-                          minHeight: 2,
-                          background: 'var(--accent3)',
-                          opacity: 0.85,
+                          height: `${maintH}%`, minHeight: 2,
+                          background: 'var(--accent3)', opacity: 0.85,
                           borderRadius: '3px 3px 0 0',
                         }} />
                       )}
@@ -140,14 +147,24 @@ export default function BarChart({ data = [], sectionLabel, title, subtitle }: B
                     <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                       {fuel > 0 && (
                         <div style={{
-                          height: `${fuelH}%`,
-                          minHeight: 2,
-                          background: 'var(--orange)',
-                          opacity: 0.85,
+                          height: `${fuelH}%`, minHeight: 2,
+                          background: 'var(--orange)', opacity: 0.85,
                           borderRadius: '3px 3px 0 0',
                         }} />
                       )}
                     </div>
+                    {/* General bar — only rendered when the dataset has general data */}
+                    {hasGeneral && (
+                      <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                        {general > 0 && (
+                          <div style={{
+                            height: `${generalH}%`, minHeight: 2,
+                            background: 'var(--accent4)', opacity: 0.85,
+                            borderRadius: '3px 3px 0 0',
+                          }} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}

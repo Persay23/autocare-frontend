@@ -9,17 +9,16 @@ import { useAuth } from '@/features/auth/useAuth'
 import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { useExpensesStore } from '@/features/expenses/expensesStore'
 import { getTheme, setTheme } from '@/lib/theme'
+import { useCurrencyStore, formatMoney, type Currency, SYMBOLS } from '@/features/currency/currencyStore'
+import { useNotificationsStore } from '@/features/notifications/notificationsStore'
 import { updateUserProfile, changeUserPassword } from '@/features/users/api'
 import {
-  loadProfile, saveProfile, clearSkipped,
-  WEEKLY_KM_LABELS, ENVIRONMENT_LABELS, STYLE_LABELS, USAGE_LABELS,
+  clearSkipped,
+  formatAnnualKm,
+  PRIMARY_USAGE_LABELS, STYLE_LABELS, USAGE_LABELS, CLIMATE_LABELS, PARKING_LABELS,
 } from '@/lib/drivingProfile'
-import type { DrivingProfile } from '@/lib/drivingProfile'
+import { useDrivingProfileStore } from '@/features/drivingProfile/drivingProfileStore'
 
-function formatStat(n: number): string {
-  if (n >= 1000) return `${Math.round(n / 1000)}k`
-  return String(n)
-}
 
 export default function Profile() {
   const { user, logout } = useAuth()
@@ -30,11 +29,16 @@ export default function Profile() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [drivingProfile, setDrivingProfile] = useState<DrivingProfile | null>(
-    () => user ? loadProfile(user.id) : null
-  )
   const [showSurvey, setShowSurvey] = useState(false)
+  const {
+    profile: drivingProfile,
+    exists: profileExists,
+    fetch: fetchProfile,
+    save: saveProfile,
+  } = useDrivingProfileStore()
   const [isDark, setIsDark] = useState(() => getTheme() !== 'light')
+  const { currency, setCurrency } = useCurrencyStore()
+  const { prefs: notifPrefs, toggle: toggleNotif } = useNotificationsStore()
 
   const { vehicles, fetch: fetchVehicles } = useVehiclesStore()
   const { summaries, fetchAll: fetchExpenses } = useExpensesStore()
@@ -46,6 +50,11 @@ export default function Profile() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicles.length])
 
+  useEffect(() => {
+    if (user) fetchProfile(user.id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
   const toggleTheme = useCallback(() => {
     const next = isDark ? 'light' : 'dark'
     setTheme(next)
@@ -55,6 +64,7 @@ export default function Profile() {
   const [form, setForm] = useState({
     name: user?.name ?? '',
     age: String(user?.age ?? ''),
+    gender: user?.gender ?? '',
     drivingExperience: String(user?.drivingExperience ?? ''),
   })
 
@@ -124,7 +134,7 @@ export default function Profile() {
       }}>
         {[
           { val: String(vehicles.length || '—'), lbl: 'CARS' },
-          { val: totalSpent > 0 ? `${formatStat(totalSpent)} zł` : '—', lbl: 'SPENT ZŁ' },
+          { val: totalSpent > 0 ? formatMoney(totalSpent, currency) : '—', lbl: 'SPENT' },
           { val: yearsExperience != null ? String(yearsExperience) : '—', lbl: 'YRS EXP' },
         ].map(({ val, lbl }, i) => (
           <div key={lbl} style={{
@@ -211,7 +221,15 @@ export default function Profile() {
             Edit Profile
           </div>
           <FormInput label="Name" value={form.name} onChange={set('name')} />
-          <FormInput label="Age" type="number" value={form.age} onChange={set('age')} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <FormInput label="Age" type="number" value={form.age} onChange={set('age')} />
+            <FormInput label="Gender" value={form.gender} onChange={set('gender')}>
+              <option value="">Not specified</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </FormInput>
+          </div>
           <FormInput label="Licence Year" type="number" value={form.drivingExperience} onChange={set('drivingExperience')} placeholder="2018" />
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -223,6 +241,7 @@ export default function Profile() {
                   await updateUserProfile(user!.id, {
                     name: form.name || null,
                     age: form.age ? Number.parseInt(form.age, 10) : null,
+                    gender: form.gender || null,
                     drivingExperience: form.drivingExperience
                       ? Number.parseInt(form.drivingExperience, 10)
                       : null,
@@ -354,10 +373,12 @@ export default function Profile() {
             borderRadius: 14, padding: '14px 16px',
           }}>
             {([
-              { label: 'Weekly Distance', value: WEEKLY_KM_LABELS[drivingProfile.weeklyKm] },
-              { label: 'Environment',     value: ENVIRONMENT_LABELS[drivingProfile.environment] },
+              { label: 'Annual Distance', value: formatAnnualKm(drivingProfile.annualKm) },
+              { label: 'Primary Usage',   value: PRIMARY_USAGE_LABELS[drivingProfile.primaryUsage] },
               { label: 'Driving Style',   value: STYLE_LABELS[drivingProfile.drivingStyle] },
               { label: 'Usage Pattern',   value: USAGE_LABELS[drivingProfile.usagePattern] },
+              { label: 'Climate Zone',    value: CLIMATE_LABELS[drivingProfile.climateZone] },
+              { label: 'Parking',         value: PARKING_LABELS[drivingProfile.parkingType] },
             ] as { label: string; value: string }[]).map(({ label, value }, i, arr) => (
               <div
                 key={label}
@@ -400,7 +421,7 @@ export default function Profile() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 9, color: 'var(--text3)', marginTop: 3,
               }}>
-                4 quick questions · improves AI predictions
+                6 quick questions · improves AI predictions
               </div>
             </div>
           </button>
@@ -419,9 +440,46 @@ export default function Profile() {
         </div>
         <div style={{
           background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: 14, padding: '14px 16px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderRadius: 14, overflow: 'hidden',
         }}>
+          {/* Currency row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 16px', borderBottom: '1px solid var(--border)',
+          }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Currency</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>
+                amounts converted from PLN
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['PLN', 'USD', 'EUR', 'UAH'] as Currency[]).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  style={{
+                    padding: '5px 9px', borderRadius: 8,
+                    background: currency === c ? 'var(--accent)' : 'var(--surface)',
+                    border: `1px solid ${currency === c ? 'var(--accent)' : 'var(--border)'}`,
+                    color: currency === c ? '#fff' : 'var(--text2)',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11, fontWeight: currency === c ? 700 : 400,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  {SYMBOLS[c]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dark mode row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 16px',
+          }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
               {isDark ? 'Dark mode' : 'Light mode'}
@@ -449,6 +507,114 @@ export default function Profile() {
               boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
             }} />
           </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div style={{ margin: '0 22px 12px' }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10, color: 'var(--text3)',
+          textTransform: 'uppercase', letterSpacing: '0.12em',
+          marginBottom: 8,
+        }}>
+          Notifications
+        </div>
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 14, overflow: 'hidden',
+        }}>
+          {([
+            {
+              key: 'componentHealth'   as const,
+              label: 'Component Health',
+              desc:  'Alert when parts drop to Repair or Critical',
+              soon:  false,
+            },
+            {
+              key: 'serviceReminders'  as const,
+              label: 'Service Reminders',
+              desc:  'Predicted service dates approaching',
+              soon:  false,
+            },
+            {
+              key: 'recurringExpenses' as const,
+              label: 'Recurring Expenses',
+              desc:  'Insurance, tax & vignette renewals',
+              soon:  false,
+            },
+            {
+              key: 'aiInsights'        as const,
+              label: 'AI Insights',
+              desc:  'New AI predictions & recommendations',
+              soon:  true,
+            },
+            {
+              key: 'diagnosisFollowup' as const,
+              label: 'Diagnosis Follow-up',
+              desc:  'Reminders after urgent AI diagnoses',
+              soon:  true,
+            },
+          ]).map(({ key, label, desc, soon }, i, arr) => (
+            <div
+              key={key}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 16px',
+                borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                opacity: soon ? 0.45 : 1,
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                    {label}
+                  </span>
+                  {soon && (
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 8, fontWeight: 600, letterSpacing: '0.06em',
+                      color: 'var(--accent4)',
+                      background: 'rgba(56,189,248,0.1)',
+                      border: '1px solid rgba(56,189,248,0.25)',
+                      padding: '1px 5px', borderRadius: 4,
+                    }}>
+                      SOON
+                    </span>
+                  )}
+                </div>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 9, color: 'var(--text3)', marginTop: 2,
+                }}>
+                  {desc}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={soon ? undefined : () => toggleNotif(key)}
+                style={{
+                  position: 'relative',
+                  width: 48, height: 26, borderRadius: 13,
+                  border: 'none', flexShrink: 0,
+                  background: notifPrefs[key]
+                    ? (soon ? 'var(--accent3)' : 'var(--accent)')
+                    : 'var(--surface3, #1e2035)',
+                  cursor: soon ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                <span style={{
+                  position: 'absolute',
+                  top: 3, left: notifPrefs[key] ? 25 : 3,
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: '#fff', transition: 'left 0.2s',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                }} />
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -480,12 +646,15 @@ export default function Profile() {
       {showSurvey && (
         <DrivingSurveySheet
           initialProfile={drivingProfile}
-          onComplete={(profile) => {
+          onComplete={async (profile) => {
             if (user) {
-              saveProfile(user.id, profile)
-              clearSkipped(user.id)
+              try {
+                await saveProfile(user.id, profile, profileExists)
+                clearSkipped(user.id)
+              } catch {
+                // proceed regardless
+              }
             }
-            setDrivingProfile(profile)
             setShowSurvey(false)
           }}
           onSkip={() => setShowSurvey(false)}

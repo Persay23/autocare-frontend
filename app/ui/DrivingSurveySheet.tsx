@@ -8,55 +8,103 @@ interface Props {
   onSkip: () => void
 }
 
-type Answers = {
-  weeklyKm: DrivingProfile['weeklyKm'] | ''
-  environment: DrivingProfile['environment'] | ''
-  drivingStyle: DrivingProfile['drivingStyle'] | ''
-  usagePattern: DrivingProfile['usagePattern'] | ''
+// ── Annual km ranges ──────────────────────────────────────────────────────────
+
+type KmRangeKey = 'lt5k' | 'k5to15' | 'k15to25' | 'k25to40' | 'gt40k'
+
+const KM_RANGES: { key: KmRangeKey; label: string; icon: string; sub: string; value: number }[] = [
+  { key: 'lt5k',    label: '< 5,000 km',       icon: '🐌', sub: 'Very low mileage',  value: 3000  },
+  { key: 'k5to15',  label: '5,000–15,000 km',  icon: '🚗', sub: 'Light commuter',    value: 10000 },
+  { key: 'k15to25', label: '15,000–25,000 km', icon: '🚕', sub: 'Average driver',    value: 20000 },
+  { key: 'k25to40', label: '25,000–40,000 km', icon: '🚀', sub: 'Heavy user',        value: 30000 },
+  { key: 'gt40k',   label: '40,000+ km',        icon: '🏎️', sub: 'Road warrior',     value: 50000 },
+]
+
+const kmToRangeKey = (km: number): KmRangeKey => {
+  if (km < 5000)  return 'lt5k'
+  if (km < 15000) return 'k5to15'
+  if (km < 25000) return 'k15to25'
+  if (km < 40000) return 'k25to40'
+  return 'gt40k'
 }
 
-const STEPS = [
+// ── Survey steps ──────────────────────────────────────────────────────────────
+
+type StepKey = 'annualKm' | 'primaryUsage' | 'drivingStyle' | 'usagePattern' | 'climateZone' | 'parkingType'
+
+type Answers = {
+  annualKm:     KmRangeKey | ''
+  primaryUsage: DrivingProfile['primaryUsage'] | ''
+  drivingStyle: DrivingProfile['drivingStyle'] | ''
+  usagePattern: DrivingProfile['usagePattern'] | ''
+  climateZone:  DrivingProfile['climateZone']  | ''
+  parkingType:  DrivingProfile['parkingType']  | ''
+}
+
+const STEPS: {
+  key: StepKey
+  title: string
+  subtitle: string
+  options: { value: string; label: string; icon: string; sub: string }[]
+}[] = [
   {
-    key: 'weeklyKm' as const,
-    title: 'Weekly distance',
-    subtitle: 'How far do you drive per week on average?',
-    options: [
-      { value: 'under100',   label: '< 100 km',       icon: '🐌', sub: 'Low usage' },
-      { value: '100to300',   label: '100–300 km',      icon: '🚗', sub: 'Light commuter' },
-      { value: '300to500',   label: '300–500 km',      icon: '🚕', sub: 'Regular driver' },
-      { value: '500to1000',  label: '500–1000 km',     icon: '🚀', sub: 'Heavy user' },
-      { value: 'over1000',   label: '1000+ km',        icon: '🏎️', sub: 'Road warrior' },
-    ],
+    key: 'annualKm',
+    title: 'Annual distance',
+    subtitle: 'How many kilometres do you drive per year on average?',
+    options: KM_RANGES.map((r) => ({ value: r.key, label: r.label, icon: r.icon, sub: r.sub })),
   },
   {
-    key: 'environment' as const,
+    key: 'primaryUsage',
     title: 'Driving environment',
     subtitle: 'Where do you spend most of your time behind the wheel?',
     options: [
-      { value: 'city',    label: 'City / Urban',      icon: '🏙️', sub: 'Stop-and-go, < 50 km/h' },
-      { value: 'highway', label: 'Highway',            icon: '🛣️', sub: 'Consistent high speed' },
-      { value: 'mixed',   label: 'Mixed',              icon: '🔀', sub: 'City + highway blend' },
-      { value: 'offroad', label: 'Off-road / Rural',   icon: '🏔️', sub: 'Rough terrain, gravel' },
+      { value: 'City',    label: 'City / Urban',    icon: '🏙️', sub: 'Stop-and-go, < 50 km/h' },
+      { value: 'Highway', label: 'Highway',          icon: '🛣️', sub: 'Consistent high speed' },
+      { value: 'Mixed',   label: 'Mixed',            icon: '🔀', sub: 'City + highway blend' },
+      { value: 'OffRoad', label: 'Off-road / Rural', icon: '🏔️', sub: 'Rough terrain, gravel' },
+      { value: 'Track',   label: 'Track / Sport',    icon: '🏁', sub: 'Circuit, performance driving' },
     ],
   },
   {
-    key: 'drivingStyle' as const,
+    key: 'drivingStyle',
     title: 'Driving style',
     subtitle: 'How would you describe how you drive?',
     options: [
-      { value: 'gentle',     label: 'Gentle',     icon: '🐢', sub: 'Smooth, economy-focused' },
-      { value: 'normal',     label: 'Normal',     icon: '🚗', sub: 'Average driver' },
-      { value: 'aggressive', label: 'Aggressive', icon: '🏎️', sub: 'Fast acceleration, sporty' },
+      { value: 'Gentle',     label: 'Gentle',     icon: '🐢', sub: 'Smooth, economy-focused' },
+      { value: 'Normal',     label: 'Normal',     icon: '🚗', sub: 'Average driver' },
+      { value: 'Aggressive', label: 'Aggressive', icon: '🏎️', sub: 'Fast acceleration, sporty' },
     ],
   },
   {
-    key: 'usagePattern' as const,
+    key: 'usagePattern',
     title: 'Usage pattern',
     subtitle: 'When do you typically use your car?',
     options: [
-      { value: 'daily',      label: 'Daily commuter', icon: '📅', sub: 'Every workday' },
-      { value: 'weekend',    label: 'Weekend driver',  icon: '🗓️', sub: 'Mostly weekends' },
-      { value: 'occasional', label: 'Occasional',      icon: '🎯', sub: 'Leisure, irregular' },
+      { value: 'Daily',        label: 'Daily commuter',  icon: '📅', sub: 'Every day' },
+      { value: 'WeekdaysOnly', label: 'Weekdays only',   icon: '💼', sub: 'Work commute, Mon–Fri' },
+      { value: 'WeekendsOnly', label: 'Weekend driver',  icon: '🗓️', sub: 'Mostly weekends' },
+      { value: 'Occasional',   label: 'Occasional',      icon: '🎯', sub: 'Leisure, irregular' },
+    ],
+  },
+  {
+    key: 'climateZone',
+    title: 'Climate zone',
+    subtitle: 'What climate do you mainly drive in?',
+    options: [
+      { value: 'Temperate', label: 'Temperate',       icon: '🌤️', sub: 'Mild seasons, moderate rain' },
+      { value: 'Cold',      label: 'Cold / Winter',   icon: '❄️',  sub: 'Snow, ice, sub-zero temps' },
+      { value: 'Hot',       label: 'Hot / Arid',      icon: '☀️',  sub: 'High heat, dry conditions' },
+      { value: 'Humid',     label: 'Humid / Tropical', icon: '🌧️', sub: 'High humidity, frequent rain' },
+    ],
+  },
+  {
+    key: 'parkingType',
+    title: 'Parking type',
+    subtitle: 'Where do you usually park your car?',
+    options: [
+      { value: 'Garage',  label: 'Garage',         icon: '🏠', sub: 'Covered, protected from elements' },
+      { value: 'Outdoor', label: 'Outdoor / Street', icon: '🌆', sub: 'Exposed to weather' },
+      { value: 'Mixed',   label: 'Mixed',            icon: '🔀', sub: 'Garage at home, outdoor elsewhere' },
     ],
   },
 ]
@@ -65,10 +113,12 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
   const [started, setStarted] = useState(false)
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Answers>({
-    weeklyKm:     initialProfile?.weeklyKm     ?? '',
-    environment:  initialProfile?.environment  ?? '',
+    annualKm:     initialProfile ? kmToRangeKey(initialProfile.annualKm) : '',
+    primaryUsage: initialProfile?.primaryUsage ?? '',
     drivingStyle: initialProfile?.drivingStyle ?? '',
     usagePattern: initialProfile?.usagePattern ?? '',
+    climateZone:  initialProfile?.climateZone  ?? '',
+    parkingType:  initialProfile?.parkingType  ?? '',
   })
 
   const current = STEPS[step]
@@ -81,12 +131,14 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
   const handleNext = () => {
     if (!selected) return
     if (isLast) {
+      const kmRange = KM_RANGES.find((r) => r.key === answers.annualKm)!
       onComplete({
-        weeklyKm:     answers.weeklyKm     as DrivingProfile['weeklyKm'],
-        environment:  answers.environment  as DrivingProfile['environment'],
+        annualKm:     kmRange.value,
+        primaryUsage: answers.primaryUsage as DrivingProfile['primaryUsage'],
         drivingStyle: answers.drivingStyle as DrivingProfile['drivingStyle'],
         usagePattern: answers.usagePattern as DrivingProfile['usagePattern'],
-        completedAt:  new Date().toISOString(),
+        climateZone:  answers.climateZone  as DrivingProfile['climateZone'],
+        parkingType:  answers.parkingType  as DrivingProfile['parkingType'],
       })
     } else {
       setStep((s) => s + 1)
@@ -161,7 +213,6 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
           /* ── Intro screen ─────────────────────────────────────────────── */
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
-              {/* Big icon */}
               <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
                 <span style={{ fontSize: 56 }}>🚗</span>
               </div>
@@ -173,11 +224,10 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 20,
               }}>
-                Answer 4 quick questions about how you drive. This helps the AI tailor
+                Answer 6 quick questions about how you drive. This helps the AI tailor
                 service predictions to your actual usage — not just generic intervals.
               </div>
 
-              {/* Benefit pills */}
               {[
                 { icon: '📍', text: 'Smarter service reminders' },
                 { icon: '⏱️', text: 'Predictions based on your habits' },
@@ -202,7 +252,7 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 9, color: 'var(--text3)', marginTop: 16, textAlign: 'center',
               }}>
-                Takes about 30 seconds · stored locally · can be changed anytime in Profile
+                Takes about 30 seconds · can be changed anytime in Profile
               </div>
             </div>
 
@@ -279,7 +329,7 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
               </div>
             </div>
 
-            {/* Options — scrollable */}
+            {/* Options */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 8px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {current.options.map((opt) => {
