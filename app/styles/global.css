@@ -61,10 +61,15 @@ body {
   font-size: 15px;
   line-height: 1.5;
   min-height: 100vh;
-  /* Simulate mobile viewport on desktop during development */
   max-width: 430px;
   margin: 0 auto;
   position: relative;
+}
+
+@media (min-width: 900px) {
+  body {
+    max-width: none;
+  }
 }
 
 a {
