@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import type { Prediction } from '@/lib/types'
 
 interface PredictionCardProps {
@@ -19,6 +20,15 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
   const isIgnored   = prediction.status === 'Ignored'
   const isDim       = isCompleted || isIgnored
 
+  const [expanded, setExpanded]   = useState(false)
+  const [isClamped, setIsClamped] = useState(false)
+  const descRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = descRef.current
+    if (el) setIsClamped(el.scrollHeight > el.clientHeight)
+  }, [prediction.description])
+
   const urgencyStyle = URGENCY_STYLE[prediction.urgency] ?? URGENCY_STYLE.Suggested
 
   const cardStyle = isDim
@@ -35,13 +45,13 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
         margin: '0 0 10px',
         border: '1px solid',
         borderRadius: 14,
-        padding: 14,
+        padding: '10px 12px',
         cursor: onClick ? 'pointer' : 'default',
         ...cardStyle,
       }}
     >
-      {/* Urgency row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+      {/* Urgency / status row — date lives here too */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         {!isDim ? (
           <>
             <span style={{
@@ -57,6 +67,11 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
             }}>
               {prediction.urgency}
             </span>
+            {prediction.suggestedByDate && (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginLeft: 'auto' }}>
+                {fmtDate(prediction.suggestedByDate)}
+              </span>
+            )}
           </>
         ) : (
           <span style={{
@@ -76,35 +91,72 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
         fontWeight: 700,
         color: isDim ? 'var(--text3)' : 'var(--text)',
         textDecoration: isCompleted ? 'line-through' : 'none',
-        marginBottom: 5,
+        marginBottom: 4,
         lineHeight: 1.3,
       }}>
         {prediction.title}
       </div>
 
-      {/* Description */}
+      {/* Description — clamped to 2 lines; ↓ more sits at the end of line 2 */}
       {!isDim && prediction.description && (
-        <div style={{
-          fontSize: 12,
-          color: 'var(--text2)',
-          lineHeight: 1.55,
-          marginBottom: 10,
-        }}>
-          {prediction.description}
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <div
+            ref={descRef}
+            style={{
+              fontSize: 12,
+              color: 'var(--text2)',
+              lineHeight: 1.55,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: expanded ? 'unset' : 2,
+              WebkitBoxOrient: 'vertical',
+              paddingRight: !expanded && isClamped ? 44 : 0,
+            } as React.CSSProperties}
+          >
+            {prediction.description}
+          </div>
+
+          {/* Collapsed: absolute at end of line 2 */}
+          {isClamped && !expanded && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(true) }}
+              style={{
+                position: 'absolute', bottom: 0, right: 0,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, color: 'var(--accent)',
+                padding: 0, lineHeight: 1.55,
+              }}
+            >
+              ↓ more
+            </button>
+          )}
+
+          {/* Expanded: inline below text */}
+          {expanded && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(false) }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, color: 'var(--accent)',
+                padding: '2px 0 0', display: 'block',
+              }}
+            >
+              ↑ less
+            </button>
+          )}
         </div>
       )}
 
-      {/* Meta row */}
-      {!isDim && (prediction.suggestedByDate || prediction.estimatedRemainingKm || prediction.componentName) && (
+      {/* Meta row — km remaining + component (date moved to urgency row) */}
+      {!isDim && (prediction.estimatedRemainingKm != null || prediction.componentName) && (
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: '4px 12px',
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10, color: 'var(--text3)',
-          marginBottom: 10,
+          marginBottom: 8,
         }}>
-          {prediction.suggestedByDate && (
-            <span>By {fmtDate(prediction.suggestedByDate)}</span>
-          )}
           {prediction.estimatedRemainingKm != null && (
             <span>{prediction.estimatedRemainingKm.toLocaleString()} km</span>
           )}
@@ -116,7 +168,7 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
 
       {/* Confidence bar */}
       {!isDim && prediction.confidenceScore != null && (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
               CONFIDENCE
