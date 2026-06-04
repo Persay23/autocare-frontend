@@ -9,12 +9,12 @@ import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
 import SmartFillButton from '@/ui/SmartFillButton'
 import FormInput from '@/ui/FormInput'
-import { COMPONENT_DEFAULTS } from '@/lib/componentDefaults'
+import { COMPONENT_DEFAULTS } from '@/lib/componentTemplates'
 import { formatEnumLabel } from '@/lib/formatters'
 
 const PRIMARY_TYPES = ['Brakes', 'Engine', 'Suspension', 'Transmission', 'Electrical']
 const EXTRA_TYPES = ['Cooling', 'Fuel', 'Exhaust', 'Tyres', 'Body', 'Other']
-const STEP_LABELS = ['Identity', 'Service', 'Limits', 'Warranty']
+const STEP_LABELS = ['Identity', 'Service', 'Warranty & Limits']
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -109,7 +109,6 @@ export default function CreateComponent() {
 
   const [step, setStep] = useState(1)
   const [showMoreTypes, setShowMoreTypes] = useState(false)
-  const [alertEnabled, setAlertEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -126,8 +125,6 @@ export default function CreateComponent() {
     expectedLifetimeYears: '',
     warrantyKm: '',
     warrantyDate: '',
-    nextServiceRecommendedKm: '',
-    nextServiceRecommendedDate: '',
   })
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -178,8 +175,12 @@ export default function CreateComponent() {
         partNumber: form.partNumber || null,
         warrantyKm: form.warrantyKm ? parseInt(form.warrantyKm, 10) : null,
         warrantyDate: form.warrantyDate ? new Date(form.warrantyDate).toISOString() : null,
-        nextServiceRecommendedKm: form.nextServiceRecommendedKm ? parseInt(form.nextServiceRecommendedKm, 10) : null,
-        nextServiceRecommendedDate: form.nextServiceRecommendedDate ? new Date(form.nextServiceRecommendedDate).toISOString() : null,
+        nextServiceRecommendedKm: installedAtVehicleMileage + (form.expectedLifetimeKm ? parseInt(form.expectedLifetimeKm, 10) : defaults.lifetimeKm),
+        nextServiceRecommendedDate: (() => {
+          const d = new Date(form.installationDate)
+          d.setFullYear(d.getFullYear() + (form.expectedLifetimeYears ? parseInt(form.expectedLifetimeYears, 10) : defaults.lifetimeYears))
+          return d.toISOString()
+        })(),
         notes: form.notes || null,
       })
       invalidate()
@@ -220,6 +221,8 @@ export default function CreateComponent() {
         <div style={{ padding: '0 22px' }}>
           <StepIndicator current={step} />
 
+          <SmartFillButton title="Scan part / receipt" subtitle="AI fills the form automatically" />
+
           {/* Step 1: Identity */}
           {step === 1 && (
             <>
@@ -229,8 +232,6 @@ export default function CreateComponent() {
                   What part is this?
                 </div>
               </div>
-
-              <SmartFillButton title="Scan part / receipt" subtitle="AI fills the form automatically" />
 
               <FormInput
                 label="Component name"
@@ -316,13 +317,13 @@ export default function CreateComponent() {
             </>
           )}
 
-          {/* Step 3: Limits */}
+          {/* Step 3: Warranty + Limits */}
           {step === 3 && (
             <>
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>Limits</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>Warranty &amp; Limits</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-                  When does this part typically need replacing?
+                  Optional — skip if not applicable
                 </div>
               </div>
 
@@ -343,76 +344,21 @@ export default function CreateComponent() {
                 />
               </div>
 
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: alertEnabled ? 'rgba(108,99,255,0.06)' : 'var(--surface2)',
-                border: `1px solid ${alertEnabled ? 'rgba(108,99,255,0.25)' : 'var(--border)'}`,
-                borderRadius: 12, padding: '12px 14px',
-                transition: 'all 0.2s',
-              }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                    Alert before limit
-                  </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
-                    Notify when approaching service limit
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAlertEnabled((p) => !p)}
-                  style={{
-                    width: 44, height: 24, borderRadius: 12,
-                    background: alertEnabled ? 'var(--accent)' : 'var(--surface)',
-                    border: `1px solid ${alertEnabled ? 'var(--accent)' : 'var(--border)'}`,
-                    cursor: 'pointer', position: 'relative',
-                    transition: 'background 0.2s', flexShrink: 0,
-                  }}
-                >
-                  <div style={{
-                    position: 'absolute', top: 3,
-                    left: alertEnabled ? 22 : 3,
-                    width: 18, height: 18, borderRadius: '50%',
-                    background: alertEnabled ? '#fff' : 'var(--text3)',
-                    transition: 'left 0.2s, background 0.2s',
-                  }} />
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Step 4: Warranty */}
-          {step === 4 && (
-            <>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>Warranty</div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>
-                  Optional — skip if not applicable
-                </div>
-              </div>
+              {divider}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
                 <FormInput label="Warranty (km)" type="number" value={form.warrantyKm} onChange={set('warrantyKm')} placeholder="20000" min="0" />
                 <FormInput label="Warranty until" type="date" value={form.warrantyDate} onChange={set('warrantyDate')} />
-              </div>
-
-              {divider}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-                <FormInput label="Next service (km)" type="number" value={form.nextServiceRecommendedKm} onChange={set('nextServiceRecommendedKm')} placeholder="50000" min="0" />
-                <FormInput label="Next service date" type="date" value={form.nextServiceRecommendedDate} onChange={set('nextServiceRecommendedDate')} />
               </div>
             </>
           )}
         </div>
 
         <div style={{ marginTop: 12 }}>
-          {step < 4 ? (
+          {step < 3 ? (
             <>
               <ActionButton type="button" onClick={advance}>
-                {step === 1 ? 'Continue to service history →'
-                  : step === 2 ? 'Continue to Limits →'
-                  : 'Continue to Warranty →'}
+                {step === 1 ? 'Continue to service history →' : 'Continue to Warranty & Limits →'}
               </ActionButton>
               <div style={{ height: 8 }} />
               {step > 1 && (
@@ -433,7 +379,7 @@ export default function CreateComponent() {
                 {loading ? 'Saving...' : 'Save Component'}
               </ActionButton>
               <div style={{ height: 8 }} />
-              <ActionButton variant="ghost" onClick={() => { setError(null); setStep(3) }}>
+              <ActionButton variant="ghost" onClick={() => { setError(null); setStep(2) }}>
                 ← Back
               </ActionButton>
               <div style={{ height: 8 }} />

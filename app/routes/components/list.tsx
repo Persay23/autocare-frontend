@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import ComponentModal from '@/ui/ComponentModal'
 import HealthBar from '@/ui/HealthBar'
 import { getComponentHealth } from '@/features/components/api'
 import { dedupFetch } from '@/lib/dedup'
@@ -12,7 +13,7 @@ import type { ComponentHealth } from '@/lib/types'
 import { healthPctToState } from '@/lib/healthState'
 
 type SortKey  = 'health-asc' | 'health-desc' | 'name-asc' | 'name-desc'
-type FilterKey = 'all' | 'critical' | 'repair' | 'warning' | 'good'
+type FilterKey = 'all' | 'critical' | 'repair' | 'warning' | 'good' | 'unknown'
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'health-asc',  label: '↑ Lowest health first' },
@@ -37,25 +38,26 @@ function healthColor(pct: number): string {
   return 'var(--red)'
 }
 
-/** Always compute state from health %, ignoring the stored DB value */
+/** Always compute state from health %, respecting Unknown when data is insufficient */
 function getDerivedState(c: ComponentHealth): string {
+  if (c.currentState === 'Unknown') return 'Unknown'
   const pct = Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0)
   return healthPctToState(pct)
 }
 
 export default function VehicleComponents() {
   const { vehicleId } = useParams()
-  const navigate = useNavigate()
   const [health, setHealth] = useState<ComponentHealth[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showQuickSetup, setShowQuickSetup] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [modalComponentId, setModalComponentId] = useState<number | null | undefined>(undefined)
   const [sort, setSort] = useState<SortKey>('health-asc')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [showSort, setShowSort] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
-  const sortRef = useRef<HTMLDivElement>(null)
+  const sortRef   = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -76,22 +78,36 @@ export default function VehicleComponents() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const existingTypes = new Set(health.map((h) => h.componentType))
+  const existingNames = new Set(
+    health.map((h) => h.vehicleComponentName).filter((n): n is string => Boolean(n))
+  )
 
   const criticalCount = health.filter((c) => getDerivedState(c) === 'Critical').length
   const repairCount   = health.filter((c) => getDerivedState(c) === 'Repair').length
   const warningCount  = health.filter((c) => getDerivedState(c) === 'Warning').length
+  const unknownCount  = health.filter((c) => getDerivedState(c) === 'Unknown').length
 
   const filteredHealth = useMemo(() => {
-    if (filter === 'all')      return health
-    if (filter === 'critical') return health.filter((c) => getDerivedState(c) === 'Critical')
-    if (filter === 'repair')   return health.filter((c) => getDerivedState(c) === 'Repair')
-    if (filter === 'warning')  return health.filter((c) => getDerivedState(c) === 'Warning')
-    return health.filter((c) => !ATTENTION_STATES.has(getDerivedState(c)))
+    let result = health
+    if (filter === 'critical') result = result.filter((c) => getDerivedState(c) === 'Critical')
+    else if (filter === 'repair')  result = result.filter((c) => getDerivedState(c) === 'Repair')
+    else if (filter === 'warning') result = result.filter((c) => getDerivedState(c) === 'Warning')
+    else if (filter === 'unknown') result = result.filter((c) => getDerivedState(c) === 'Unknown')
+    else if (filter === 'good')    result = result.filter((c) => {
+      const s = getDerivedState(c)
+      return !ATTENTION_STATES.has(s) && s !== 'Unknown'
+    })
+    return result
   }, [health, filter])
 
   const sortedHealth = useMemo(() => {
     return filteredHealth.slice().sort((a, b) => {
+      // Unknown components always sort last regardless of sort key
+      const unkA = getDerivedState(a) === 'Unknown'
+      const unkB = getDerivedState(b) === 'Unknown'
+      if (unkA && !unkB) return 1
+      if (!unkA && unkB) return -1
+
       const pctA = Math.min(a.kmLifetimePercent ?? 0, a.yearsLifetimePercent ?? 0)
       const pctB = Math.min(b.kmLifetimePercent ?? 0, b.yearsLifetimePercent ?? 0)
       const nameA = (a.vehicleComponentName || formatEnumLabel(a.componentType)).toLowerCase()
@@ -104,7 +120,11 @@ export default function VehicleComponents() {
   }, [filteredHealth, sort])
 
   const needsAttention = sortedHealth.filter((c) => ATTENTION_STATES.has(getDerivedState(c)))
-  const healthy        = sortedHealth.filter((c) => !ATTENTION_STATES.has(getDerivedState(c)))
+  const healthy        = sortedHealth.filter((c) => {
+    const s = getDerivedState(c)
+    return !ATTENTION_STATES.has(s) && s !== 'Unknown'
+  })
+  const unknownGroup   = sortedHealth.filter((c) => getDerivedState(c) === 'Unknown')
   const showGroups     = filter === 'all'
 
   const filterOptions: { key: FilterKey; label: string }[] = [
@@ -112,7 +132,8 @@ export default function VehicleComponents() {
     ...(criticalCount > 0 ? [{ key: 'critical' as FilterKey, label: `Critical (${criticalCount})` }] : []),
     ...(repairCount   > 0 ? [{ key: 'repair'   as FilterKey, label: `Repair (${repairCount})`     }] : []),
     ...(warningCount  > 0 ? [{ key: 'warning'  as FilterKey, label: `Warning (${warningCount})`   }] : []),
-    { key: 'good', label: 'Good' },
+    { key: 'good',    label: 'Good' },
+    ...(unknownCount  > 0 ? [{ key: 'unknown'  as FilterKey, label: `Unknown (${unknownCount})`   }] : []),
   ]
 
   const currentFilterLabel = filterOptions.find((o) => o.key === filter)?.label ?? 'All'
@@ -128,7 +149,7 @@ export default function VehicleComponents() {
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Components</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
-            onClick={() => navigate(`/vehicles/${vehicleId}/components/new`)}
+            onClick={() => setModalComponentId(null)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               padding: '6px 14px', borderRadius: 10,
@@ -234,6 +255,7 @@ export default function VehicleComponents() {
         </div>
       </div>
 
+
       {loading && <LoadingState />}
       {error && <ErrorState message={error} />}
       {!loading && !error && health.length === 0 && (
@@ -252,7 +274,7 @@ export default function VehicleComponents() {
                 Needs Attention
               </div>
               {needsAttention.map((c) => (
-                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={navigate} attention />
+                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} attention />
               ))}
             </>
           )}
@@ -267,13 +289,28 @@ export default function VehicleComponents() {
                 Healthy
               </div>
               {healthy.map((c) => (
-                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={navigate} />
+                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} />
+              ))}
+            </>
+          )}
+
+          {showGroups && unknownGroup.length > 0 && (
+            <>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+                color: 'var(--text3)', letterSpacing: '0.14em', textTransform: 'uppercase',
+                marginTop: (needsAttention.length > 0 || healthy.length > 0) ? 16 : 0, marginBottom: 8,
+              }}>
+                Not configured
+              </div>
+              {unknownGroup.map((c) => (
+                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} />
               ))}
             </>
           )}
 
           {!showGroups && sortedHealth.map((c) => (
-            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={navigate} attention={ATTENTION_STATES.has(getDerivedState(c))} />
+            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} attention={ATTENTION_STATES.has(getDerivedState(c))} />
           ))}
         </div>
       )}
@@ -297,9 +334,19 @@ export default function VehicleComponents() {
       {showQuickSetup && (
         <QuickSetupSheet
           vehicleId={vehicleId!}
-          existingTypes={existingTypes}
+          existingNames={existingNames}
           onClose={() => setShowQuickSetup(false)}
           onCreated={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {modalComponentId !== undefined && (
+        <ComponentModal
+          componentId={modalComponentId}
+          vehicleId={vehicleId!}
+          onClose={() => setModalComponentId(undefined)}
+          onSaved={() => { setRefreshKey((k) => k + 1); setModalComponentId(undefined) }}
+          onDeleted={() => { setRefreshKey((k) => k + 1); setModalComponentId(undefined) }}
         />
       )}
     </div>
@@ -317,9 +364,9 @@ function ComponentCard({
   const healthPct = Math.min(component.kmLifetimePercent ?? 0, component.yearsLifetimePercent ?? 0)
   const hColor = healthColor(healthPct)
   const CI = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other
-  const derivedState = healthPctToState(healthPct)
-  const attnStyle = ATTENTION_STYLE[derivedState]
   const isUnknown = component.currentState === 'Unknown'
+  const derivedState = isUnknown ? 'Unknown' : healthPctToState(healthPct)
+  const attnStyle = ATTENTION_STYLE[derivedState]
   const displayColor = isUnknown ? 'var(--text2)' : hColor
   const displayName = component.vehicleComponentName || formatEnumLabel(component.componentType)
   const subtitle = [

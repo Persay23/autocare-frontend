@@ -93,7 +93,6 @@ export default function EditComponent() {
   const invalidate = useVehiclesStore((s) => s.invalidate)
 
   const [form, setForm] = useState<ComponentForm | null>(null)
-  const [alertEnabled, setAlertEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -150,8 +149,12 @@ export default function EditComponent() {
         partNumber: form.partNumber || null,
         warrantyKm: form.warrantyKm !== '' ? parseInt(String(form.warrantyKm), 10) : null,
         warrantyDate: form.warrantyDate ? new Date(form.warrantyDate).toISOString() : null,
-        nextServiceRecommendedKm: form.nextServiceRecommendedKm !== '' ? parseInt(String(form.nextServiceRecommendedKm), 10) : null,
-        nextServiceRecommendedDate: form.nextServiceRecommendedDate ? new Date(form.nextServiceRecommendedDate).toISOString() : null,
+        nextServiceRecommendedKm: (installedAtVehicleMileage ?? 0) + (form.expectedLifetimeKm !== '' ? parseInt(String(form.expectedLifetimeKm), 10) : 0),
+        nextServiceRecommendedDate: (() => {
+          const d = new Date(form.installationDate)
+          d.setFullYear(d.getFullYear() + (form.expectedLifetimeYears !== '' ? parseInt(String(form.expectedLifetimeYears), 10) : 0))
+          return d.toISOString()
+        })(),
       })
       invalidate()
       goBack()
@@ -268,41 +271,6 @@ export default function EditComponent() {
             />
           </div>
 
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: alertEnabled ? 'rgba(108,99,255,0.06)' : 'var(--surface2)',
-            border: `1px solid ${alertEnabled ? 'rgba(108,99,255,0.25)' : 'var(--border)'}`,
-            borderRadius: 12, padding: '12px 14px', marginBottom: 14,
-            transition: 'all 0.2s',
-          }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                Alert before limit
-              </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
-                Notify when approaching service limit
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAlertEnabled((p) => !p)}
-              style={{
-                width: 44, height: 24, borderRadius: 12,
-                background: alertEnabled ? 'var(--accent)' : 'var(--surface)',
-                border: `1px solid ${alertEnabled ? 'var(--accent)' : 'var(--border)'}`,
-                cursor: 'pointer', position: 'relative',
-                transition: 'background 0.2s', flexShrink: 0,
-              }}
-            >
-              <div style={{
-                position: 'absolute', top: 3,
-                left: alertEnabled ? 22 : 3,
-                width: 18, height: 18, borderRadius: '50%',
-                background: alertEnabled ? '#fff' : 'var(--text3)',
-                transition: 'left 0.2s, background 0.2s',
-              }} />
-            </button>
-          </div>
 
           {divider}
 
@@ -314,10 +282,6 @@ export default function EditComponent() {
             <FormInput label="Warranty until" type="date" value={form.warrantyDate} onChange={set('warrantyDate')} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
-            <FormInput label="Next service (km)" type="number" value={form.nextServiceRecommendedKm} onChange={set('nextServiceRecommendedKm')} placeholder="50000" min="0" />
-            <FormInput label="Next service date" type="date" value={form.nextServiceRecommendedDate} onChange={set('nextServiceRecommendedDate')} />
-          </div>
         </div>
 
         <ActionButton type="submit" disabled={saving}>

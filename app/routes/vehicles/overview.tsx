@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useOutletContext, useNavigate, useParams } from 'react-router-dom'
 import BarChart from '@/ui/BarChart'
 import ActionButton from '@/ui/ActionButton'
@@ -10,7 +10,7 @@ import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { dedupFetch } from '@/lib/dedup'
 import { createComponent } from '@/features/components/api'
 import { PRESET_GROUPS } from '@/lib/presetComponents'
-import { COMPONENT_DEFAULTS } from '@/lib/componentDefaults'
+import { COMPONENT_DEFAULTS } from '@/lib/componentTemplates'
 import { formatEnumLabel } from '@/lib/formatters'
 import { toConfidencePercent } from '@/lib/confidenceUtils'
 import { healthPctToState } from '@/lib/healthState'
@@ -68,21 +68,24 @@ function HealthRing({ health }: { health: ComponentHealth[] | null | undefined }
     )
   }
 
-  const total = health.length
+  const knownHealth = health.filter((c) => c.currentState !== 'Unknown')
+  const ringTotal = health.length || 1
   const counts = health.reduce<Record<string, number>>((acc, c) => {
-    const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+    const state = c.currentState === 'Unknown'
+      ? 'Unknown'
+      : healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
     acc[state] = (acc[state] ?? 0) + 1
     return acc
   }, {})
-  const avg = Math.round(
-    health.reduce((sum, c) => sum + Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0), 0) / total
-  )
+  const avg = knownHealth.length > 0
+    ? Math.round(knownHealth.reduce((sum, c) => sum + Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0), 0) / knownHealth.length)
+    : 0
 
   const stops = STATE_ORDER
     .filter((s) => counts[s])
     .reduce<{ parts: string[]; sum: number }>(
       ({ parts, sum }, s) => {
-        const pct = ((counts[s] ?? 0) / total) * 100
+        const pct = ((counts[s] ?? 0) / ringTotal) * 100
         return { parts: [...parts, `${STATE_COLORS[s]} ${sum}% ${sum + pct}%`], sum: sum + pct }
       },
       { parts: [], sum: 0 }
@@ -119,9 +122,14 @@ export default function VehicleOverview() {
 
   const [costData, setCostData] = useState<BarChartPoint[]>([])
   const [recordCount, setRecordCount] = useState<number | null>(null)
-  const [nextPrediction, setNextPrediction] = useState<Prediction | null>(null)
+  const [allPredictions, setAllPredictions] = useState<Prediction[]>([])
   const [recentExpenses, setRecentExpenses] = useState<GeneralExpense[]>([])
   const [expensesExpanded, setExpensesExpanded] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1)
+  })
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [settingUp, setSettingUp] = useState(false)
   const [selectedPresets, setSelectedPresets] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -179,30 +187,84 @@ export default function VehicleOverview() {
       }
       if (predsRes.status === 'fulfilled') {
         const preds: Prediction[] = Array.isArray(predsRes.value.data) ? predsRes.value.data : []
-        const next = preds
-          .filter((p) => p.status === 'Active')
-          .sort((a, b) => {
-            const da = a.suggestedByDate ? new Date(a.suggestedByDate).getTime() : Infinity
-            const db = b.suggestedByDate ? new Date(b.suggestedByDate).getTime() : Infinity
-            return da - db
-          })[0] ?? null
-        setNextPrediction(next)
+        setAllPredictions(preds)
       }
     })
     return () => { cancelled = true }
   }, [vehicle?.vehicleId, vehicleId])
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  // Derive next upcoming active prediction (existing card)
+  const nextPrediction = useMemo(() =>
+    allPredictions
+      .filter((p) => p.status === 'Active')
+      .sort((a, b) => {
+        const da = a.suggestedByDate ? new Date(a.suggestedByDate).getTime() : Infinity
+        const db = b.suggestedByDate ? new Date(b.suggestedByDate).getTime() : Infinity
+        return da - db
+      })[0] ?? null
+  , [allPredictions])
+
+  // Build the calendar event map: YYYY-MM-DD → [{label, color}]
+  const serviceEvents = useMemo(() => {
+    const map = new Map<string, { label: string; color: string }[]>()
+    const add = (key: string, ev: { label: string; color: string }) => {
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(ev)
+    }
+    const URGENCY_COLOR: Record<string, string> = {
+      Immediate: 'var(--red)',
+      Soon:      'var(--orange)',
+      Scheduled: 'var(--yellow)',
+      Suggested: 'var(--text3)',
+    }
+    for (const p of allPredictions.filter((p) => p.status === 'Active')) {
+      const color = URGENCY_COLOR[p.urgency] ?? 'var(--text3)'
+      const key = p.suggestedByDate
+        ? p.suggestedByDate.slice(0, 10)
+        : p.urgency === 'Immediate' ? todayStr : null
+      if (key) add(key, { label: p.title, color })
+    }
+    for (const c of (health ?? [])) {
+      if (c.aiEstimatedNextServiceDate) {
+        add(c.aiEstimatedNextServiceDate.slice(0, 10), {
+          label: c.vehicleComponentName ?? formatEnumLabel(c.componentType),
+          color: 'var(--accent)',
+        })
+      }
+    }
+    return map
+  }, [allPredictions, health, todayStr])
+
+  // Build flat array of day cells for the current calendar month
+  const calendarDays = useMemo(() => {
+    const yr  = calendarMonth.getFullYear()
+    const mo  = calendarMonth.getMonth()
+    const firstDow    = new Date(yr, mo, 1).getDay()         // 0=Sun
+    const daysInMonth = new Date(yr, mo + 1, 0).getDate()
+    const startOffset = (firstDow + 6) % 7                   // convert to Mon-first
+    const cells: (number | null)[] = Array(startOffset).fill(null)
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+    while (cells.length % 7 !== 0) cells.push(null)
+    return cells
+  }, [calendarMonth])
+
   if (!vehicle) return null
 
   const totalSpent = costData.reduce((sum, item) => sum + item.maintenance + item.fuel + (item.general ?? 0), 0)
 
-  const counts = (health ?? []).reduce<Record<string, number>>((acc, c) => {
-    const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
-    acc[state] = (acc[state] ?? 0) + 1
-    return acc
-  }, {})
+  const counts = (health ?? [])
+    .reduce<Record<string, number>>((acc, c) => {
+      const state = c.currentState === 'Unknown'
+        ? 'Unknown'
+        : healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
+      acc[state] = (acc[state] ?? 0) + 1
+      return acc
+    }, {})
 
   const attnComponents = (health ?? []).filter((c) => {
+    if (c.currentState === 'Unknown') return false
     const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
     return state === 'Critical' || state === 'Repair'
   })
@@ -270,7 +332,7 @@ export default function VehicleOverview() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--orange)' }}>
-                {attnComponents.length} component{attnComponents.length > 1 ? 's' : ''} need attention
+                {attnComponents.length} need attention
               </span>
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, flexShrink: 0 }}>
@@ -286,8 +348,8 @@ export default function VehicleOverview() {
             </div>
           </div>
 
-          {/* Chips — max 4 */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {/* Chips — max 4, 2-column grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {attnComponents.slice(0, 4).map((c) => {
               const state = healthPctToState(Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0))
               const isCritical = state === 'Critical'
@@ -296,7 +358,7 @@ export default function VehicleOverview() {
                   key={c.componentId}
                   onClick={() => navigate(`/vehicles/${vehicleId}/components/${c.componentId}`)}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    display: 'flex', alignItems: 'center', gap: 5, minWidth: 0,
                     padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
                     background: isCritical ? 'rgba(248,113,113,0.12)' : 'rgba(251,146,60,0.12)',
                     border: `1px solid ${isCritical ? 'rgba(248,113,113,0.3)' : 'rgba(251,146,60,0.3)'}`,
@@ -310,6 +372,7 @@ export default function VehicleOverview() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10, fontWeight: 600,
                     color: isCritical ? 'var(--red)' : 'var(--orange)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {c.vehicleComponentName ?? formatEnumLabel(c.componentType)}
                   </span>
@@ -330,6 +393,22 @@ export default function VehicleOverview() {
               → View all in Components
             </span>
           </div>
+        </div>
+      )}
+
+      {attnComponents.length === 0 && (
+        <div style={{
+          margin: '8px 16px 12px',
+          background: 'rgba(74,222,128,0.06)',
+          border: '1px solid rgba(74,222,128,0.2)',
+          borderRadius: 12,
+          padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>
+            Everything looks good
+          </span>
         </div>
       )}
 
@@ -465,7 +544,7 @@ export default function VehicleOverview() {
 
       {/* Stats row */}
       <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
         margin: '0 16px 12px',
         background: 'var(--surface)',
         border: '1px solid var(--border)',
@@ -473,7 +552,7 @@ export default function VehicleOverview() {
         overflow: 'hidden',
       }}>
         <div style={{ padding: '12px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
             {formatMoney(totalSpent, currency)}
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
@@ -481,19 +560,29 @@ export default function VehicleOverview() {
           </div>
         </div>
         <div style={{ padding: '12px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
             {health?.length ?? 0}
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
             components
           </div>
         </div>
-        <div style={{ padding: '12px 0', textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+        <div style={{ padding: '12px 0', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
             {recordCount ?? '—'}
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
             records
+          </div>
+        </div>
+        <div style={{ padding: '12px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+            {vehicle.averageKmPerYear != null
+              ? `${(vehicle.averageKmPerYear / 1000).toFixed(1)}k`
+              : '—'}
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text2)', marginTop: 3 }}>
+            km/year
           </div>
         </div>
       </div>
@@ -545,6 +634,154 @@ export default function VehicleOverview() {
                 {nextPrediction.suggestedByDate ? relativeDay(nextPrediction.suggestedByDate) : ''}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Service Calendar */}
+      {serviceEvents.size > 0 && (
+        <div style={{
+          margin: '0 16px 12px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: '12px 14px',
+        }}>
+          {/* Calendar header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 9, color: 'var(--text3)',
+              textTransform: 'uppercase', letterSpacing: '0.1em',
+            }}>
+              Service Calendar
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 4px' }}
+              >‹</button>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, fontWeight: 600, color: 'var(--text)',
+                minWidth: 82, textAlign: 'center',
+              }}>
+                {calendarMonth.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+              </span>
+              <button
+                onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 4px' }}
+              >›</button>
+            </div>
+          </div>
+
+          {/* Weekday headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
+            {['Mo','Tu','We','Th','Fr','Sa','Su'].map((d) => (
+              <div key={d} style={{
+                textAlign: 'center',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 8, color: 'var(--text3)', paddingBottom: 4,
+              }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+            {calendarDays.map((day, i) => {
+              if (day === null) return <div key={`e-${i}`} />
+              const yr  = calendarMonth.getFullYear()
+              const mo  = String(calendarMonth.getMonth() + 1).padStart(2, '0')
+              const dy  = String(day).padStart(2, '0')
+              const key = `${yr}-${mo}-${dy}`
+              const evs = serviceEvents.get(key) ?? []
+              const isToday    = key === todayStr
+              const isSelected = selectedDay === key
+              const hasEvs     = evs.length > 0
+              return (
+                <div
+                  key={key}
+                  onClick={() => hasEvs && setSelectedDay((prev) => prev === key ? null : key)}
+                  style={{
+                    borderRadius: 7,
+                    padding: '4px 2px 3px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    background: isSelected
+                      ? 'rgba(108,99,255,0.14)'
+                      : isToday ? 'rgba(108,99,255,0.06)' : 'none',
+                    border: isToday
+                      ? '1px solid rgba(108,99,255,0.28)'
+                      : '1px solid transparent',
+                    cursor: hasEvs ? 'pointer' : 'default',
+                  }}
+                >
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10,
+                    color: isToday ? 'var(--accent)' : 'var(--text2)',
+                    fontWeight: isToday ? 700 : 400,
+                  }}>
+                    {day}
+                  </span>
+                  {hasEvs && (
+                    <div style={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {evs.slice(0, 3).map((ev, j) => (
+                        <div key={j} style={{
+                          width: 4, height: 4, borderRadius: '50%',
+                          background: ev.color, flexShrink: 0,
+                        }} />
+                      ))}
+                      {evs.length > 3 && (
+                        <span style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 7, color: 'var(--text3)', lineHeight: 1,
+                        }}>+{evs.length - 3}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Selected day event list */}
+          {selectedDay && (serviceEvents.get(selectedDay)?.length ?? 0) > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9, color: 'var(--text3)', marginBottom: 6,
+              }}>
+                {new Date(selectedDay + 'T12:00:00').toLocaleDateString('en-GB', {
+                  weekday: 'long', day: 'numeric', month: 'long',
+                })}
+              </div>
+              {serviceEvents.get(selectedDay)!.map((ev, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: ev.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.3 }}>{ev.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Legend */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 10,
+            marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)',
+          }}>
+            {[
+              { color: 'var(--red)',    label: 'Immediate' },
+              { color: 'var(--orange)', label: 'Soon' },
+              { color: 'var(--yellow)', label: 'Scheduled' },
+              { color: 'var(--accent)', label: 'AI estimate' },
+            ].map(({ color, label }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: 'var(--text3)' }}>
+                  {label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

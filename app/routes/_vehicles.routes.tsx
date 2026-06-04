@@ -14,16 +14,11 @@ import RecordComponents from './records/components'
 
 import VehicleComponents from './components/list'
 import CreateComponent   from './components/create'
-import ComponentDetail   from './components/detail'
 import EditComponent     from './components/edit'
 
 import VehicleFuel   from './fuel/list'
-import CreateFuel    from './fuel/create'
-import FuelDetail    from './fuel/detail'
-import EditFuel      from './fuel/edit'
 
 import VehiclePredictions from './predictions/list'
-import PredictionDetail   from './predictions/detail'
 
 export const vehicleRoutes: RouteObject[] = [
   {
@@ -39,17 +34,8 @@ export const vehicleRoutes: RouteObject[] = [
       { path: '/vehicles/:vehicleId/records/:recordId/components',     element: <RecordComponents /> },
 
       // ── Components ────────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/components/new',                 element: <CreateComponent /> },
-      { path: '/vehicles/:vehicleId/components/:componentId',        element: <ComponentDetail /> },
-      { path: '/vehicles/:vehicleId/components/:componentId/edit',   element: <EditComponent /> },
-
-      // ── Fuel ──────────────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/fuel/new',           element: <CreateFuel /> },
-      { path: '/vehicles/:vehicleId/fuel/:entryId',      element: <FuelDetail /> },
-      { path: '/vehicles/:vehicleId/fuel/:entryId/edit', element: <EditFuel /> },
-
-      // ── Predictions ───────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/predictions/:predictionId', element: <PredictionDetail /> },
+      { path: '/vehicles/:vehicleId/components/new',               element: <CreateComponent /> },
+      { path: '/vehicles/:vehicleId/components/:componentId/edit', element: <EditComponent /> },
 
       // ── Vehicle tabs (layout wraps tab content) ───────────────────────
       {
