@@ -8,6 +8,8 @@ interface TimelineItemProps {
   showVehicle?: boolean
   showDate?: boolean
   isDuplicate?: boolean
+  duplicateGroup?: number
+  onDismissDuplicate?: () => void
   onClick?: () => void
   isLast?: boolean
 }
@@ -37,7 +39,7 @@ function isJunk(desc: string | null | undefined): boolean {
   return JUNK.test(desc.trim())
 }
 
-export default function TimelineItem({ event, showVehicle, showDate, isDuplicate, onClick, isLast }: TimelineItemProps) {
+export default function TimelineItem({ event, showVehicle, showDate, isDuplicate, duplicateGroup, onDismissDuplicate, onClick, isLast }: TimelineItemProps) {
   const { currency } = useCurrencyStore()
   const dot        = DOT_STYLES[event.type]  ?? DOT_STYLES.Other
   const amountColor = AMOUNT_COLORS[event.type] ?? 'var(--accent3)'
@@ -123,12 +125,24 @@ export default function TimelineItem({ event, showVehicle, showDate, isDuplicate
           {isDuplicate && (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              marginTop: 4, padding: '2px 8px', borderRadius: 999,
+              marginTop: 4, padding: '2px 6px 2px 8px', borderRadius: 999,
               background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 9, fontWeight: 600, color: 'var(--yellow)',
             }}>
-              ⚠ possible duplicate
+              ⚠ duplicate{duplicateGroup != null ? ` #${duplicateGroup}` : ''}
+              <button
+                onClick={(e) => { e.stopPropagation(); onDismissDuplicate?.() }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  marginLeft: 2, width: 14, height: 14, borderRadius: '50%',
+                  border: 'none', background: 'rgba(251,191,36,0.2)',
+                  color: 'var(--yellow)', cursor: 'pointer', fontSize: 9, lineHeight: 1,
+                  padding: 0, flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
             </div>
           )}
         </div>

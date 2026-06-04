@@ -1,5 +1,30 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk'
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
+import DriveEtaIcon from '@mui/icons-material/DriveEta'
+import SpeedIcon from '@mui/icons-material/Speed'
+import BoltIcon from '@mui/icons-material/Bolt'
+import LocationCityIcon from '@mui/icons-material/LocationCity'
+import RouteIcon from '@mui/icons-material/Route'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
+import TerrainIcon from '@mui/icons-material/Terrain'
+import FlagIcon from '@mui/icons-material/Flag'
+import NatureIcon from '@mui/icons-material/Nature'
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
+import WorkIcon from '@mui/icons-material/Work'
+import WeekendIcon from '@mui/icons-material/Weekend'
+import EventNoteIcon from '@mui/icons-material/EventNote'
+import WbCloudyIcon from '@mui/icons-material/WbCloudy'
+import AcUnitIcon from '@mui/icons-material/AcUnit'
+import WbSunnyIcon from '@mui/icons-material/WbSunny'
+import OpacityIcon from '@mui/icons-material/Opacity'
+import GarageIcon from '@mui/icons-material/Garage'
+import LocationOnIcon from '@mui/icons-material/LocationOn'
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import BuildIcon from '@mui/icons-material/Build'
 import type { DrivingProfile } from '@/lib/drivingProfile'
 
 interface Props {
@@ -12,12 +37,12 @@ interface Props {
 
 type KmRangeKey = 'lt5k' | 'k5to15' | 'k15to25' | 'k25to40' | 'gt40k'
 
-const KM_RANGES: { key: KmRangeKey; label: string; icon: string; sub: string; value: number }[] = [
-  { key: 'lt5k',    label: '< 5,000 km',       icon: '🐌', sub: 'Very low mileage',  value: 3000  },
-  { key: 'k5to15',  label: '5,000–15,000 km',  icon: '🚗', sub: 'Light commuter',    value: 10000 },
-  { key: 'k15to25', label: '15,000–25,000 km', icon: '🚕', sub: 'Average driver',    value: 20000 },
-  { key: 'k25to40', label: '25,000–40,000 km', icon: '🚀', sub: 'Heavy user',        value: 30000 },
-  { key: 'gt40k',   label: '40,000+ km',        icon: '🏎️', sub: 'Road warrior',     value: 50000 },
+const KM_RANGES: { key: KmRangeKey; label: string; icon: ReactNode; sub: string; value: number }[] = [
+  { key: 'lt5k',    label: '< 5,000 km',       icon: <DirectionsWalkIcon sx={{ fontSize: 20 }} />, sub: 'Very low mileage',  value: 3000  },
+  { key: 'k5to15',  label: '5,000–15,000 km',  icon: <DirectionsCarIcon  sx={{ fontSize: 20 }} />, sub: 'Light commuter',    value: 10000 },
+  { key: 'k15to25', label: '15,000–25,000 km', icon: <DriveEtaIcon       sx={{ fontSize: 20 }} />, sub: 'Average driver',    value: 20000 },
+  { key: 'k25to40', label: '25,000–40,000 km', icon: <SpeedIcon          sx={{ fontSize: 20 }} />, sub: 'Heavy user',        value: 30000 },
+  { key: 'gt40k',   label: '40,000+ km',        icon: <BoltIcon           sx={{ fontSize: 20 }} />, sub: 'Road warrior',      value: 50000 },
 ]
 
 const kmToRangeKey = (km: number): KmRangeKey => {
@@ -41,12 +66,9 @@ type Answers = {
   parkingType:  DrivingProfile['parkingType']  | ''
 }
 
-const STEPS: {
-  key: StepKey
-  title: string
-  subtitle: string
-  options: { value: string; label: string; icon: string; sub: string }[]
-}[] = [
+type StepOption = { value: string; label: string; icon: ReactNode; sub: string }
+
+const STEPS: { key: StepKey; title: string; subtitle: string; options: StepOption[] }[] = [
   {
     key: 'annualKm',
     title: 'Annual distance',
@@ -58,11 +80,11 @@ const STEPS: {
     title: 'Driving environment',
     subtitle: 'Where do you spend most of your time behind the wheel?',
     options: [
-      { value: 'City',    label: 'City / Urban',    icon: '🏙️', sub: 'Stop-and-go, < 50 km/h' },
-      { value: 'Highway', label: 'Highway',          icon: '🛣️', sub: 'Consistent high speed' },
-      { value: 'Mixed',   label: 'Mixed',            icon: '🔀', sub: 'City + highway blend' },
-      { value: 'OffRoad', label: 'Off-road / Rural', icon: '🏔️', sub: 'Rough terrain, gravel' },
-      { value: 'Track',   label: 'Track / Sport',    icon: '🏁', sub: 'Circuit, performance driving' },
+      { value: 'City',    label: 'City / Urban',    icon: <LocationCityIcon        sx={{ fontSize: 20 }} />, sub: 'Stop-and-go, < 50 km/h'      },
+      { value: 'Highway', label: 'Highway',          icon: <RouteIcon               sx={{ fontSize: 20 }} />, sub: 'Consistent high speed'        },
+      { value: 'Mixed',   label: 'Mixed',            icon: <SwapHorizIcon           sx={{ fontSize: 20 }} />, sub: 'City + highway blend'         },
+      { value: 'OffRoad', label: 'Off-road / Rural', icon: <TerrainIcon             sx={{ fontSize: 20 }} />, sub: 'Rough terrain, gravel'        },
+      { value: 'Track',   label: 'Track / Sport',    icon: <FlagIcon                sx={{ fontSize: 20 }} />, sub: 'Circuit, performance driving' },
     ],
   },
   {
@@ -70,9 +92,9 @@ const STEPS: {
     title: 'Driving style',
     subtitle: 'How would you describe how you drive?',
     options: [
-      { value: 'Gentle',     label: 'Gentle',     icon: '🐢', sub: 'Smooth, economy-focused' },
-      { value: 'Normal',     label: 'Normal',     icon: '🚗', sub: 'Average driver' },
-      { value: 'Aggressive', label: 'Aggressive', icon: '🏎️', sub: 'Fast acceleration, sporty' },
+      { value: 'Gentle',     label: 'Gentle',     icon: <NatureIcon              sx={{ fontSize: 20 }} />, sub: 'Smooth, economy-focused'    },
+      { value: 'Normal',     label: 'Normal',     icon: <DirectionsCarIcon       sx={{ fontSize: 20 }} />, sub: 'Average driver'             },
+      { value: 'Aggressive', label: 'Aggressive', icon: <LocalFireDepartmentIcon sx={{ fontSize: 20 }} />, sub: 'Fast acceleration, sporty'  },
     ],
   },
   {
@@ -80,10 +102,10 @@ const STEPS: {
     title: 'Usage pattern',
     subtitle: 'When do you typically use your car?',
     options: [
-      { value: 'Daily',        label: 'Daily commuter',  icon: '📅', sub: 'Every day' },
-      { value: 'WeekdaysOnly', label: 'Weekdays only',   icon: '💼', sub: 'Work commute, Mon–Fri' },
-      { value: 'WeekendsOnly', label: 'Weekend driver',  icon: '🗓️', sub: 'Mostly weekends' },
-      { value: 'Occasional',   label: 'Occasional',      icon: '🎯', sub: 'Leisure, irregular' },
+      { value: 'Daily',        label: 'Daily commuter', icon: <CalendarTodayIcon sx={{ fontSize: 20 }} />, sub: 'Every day'              },
+      { value: 'WeekdaysOnly', label: 'Weekdays only',  icon: <WorkIcon          sx={{ fontSize: 20 }} />, sub: 'Work commute, Mon–Fri'  },
+      { value: 'WeekendsOnly', label: 'Weekend driver', icon: <WeekendIcon       sx={{ fontSize: 20 }} />, sub: 'Mostly weekends'        },
+      { value: 'Occasional',   label: 'Occasional',     icon: <EventNoteIcon     sx={{ fontSize: 20 }} />, sub: 'Leisure, irregular'     },
     ],
   },
   {
@@ -91,10 +113,10 @@ const STEPS: {
     title: 'Climate zone',
     subtitle: 'What climate do you mainly drive in?',
     options: [
-      { value: 'Temperate', label: 'Temperate',       icon: '🌤️', sub: 'Mild seasons, moderate rain' },
-      { value: 'Cold',      label: 'Cold / Winter',   icon: '❄️',  sub: 'Snow, ice, sub-zero temps' },
-      { value: 'Hot',       label: 'Hot / Arid',      icon: '☀️',  sub: 'High heat, dry conditions' },
-      { value: 'Humid',     label: 'Humid / Tropical', icon: '🌧️', sub: 'High humidity, frequent rain' },
+      { value: 'Temperate', label: 'Temperate',        icon: <WbCloudyIcon sx={{ fontSize: 20 }} />, sub: 'Mild seasons, moderate rain'  },
+      { value: 'Cold',      label: 'Cold / Winter',    icon: <AcUnitIcon   sx={{ fontSize: 20 }} />, sub: 'Snow, ice, sub-zero temps'    },
+      { value: 'Hot',       label: 'Hot / Arid',       icon: <WbSunnyIcon  sx={{ fontSize: 20 }} />, sub: 'High heat, dry conditions'    },
+      { value: 'Humid',     label: 'Humid / Tropical', icon: <OpacityIcon  sx={{ fontSize: 20 }} />, sub: 'High humidity, frequent rain' },
     ],
   },
   {
@@ -102,16 +124,16 @@ const STEPS: {
     title: 'Parking type',
     subtitle: 'Where do you usually park your car?',
     options: [
-      { value: 'Garage',  label: 'Garage',         icon: '🏠', sub: 'Covered, protected from elements' },
-      { value: 'Outdoor', label: 'Outdoor / Street', icon: '🌆', sub: 'Exposed to weather' },
-      { value: 'Mixed',   label: 'Mixed',            icon: '🔀', sub: 'Garage at home, outdoor elsewhere' },
+      { value: 'Garage',  label: 'Garage',          icon: <GarageIcon     sx={{ fontSize: 20 }} />, sub: 'Covered, protected from elements'    },
+      { value: 'Outdoor', label: 'Outdoor / Street', icon: <LocationOnIcon sx={{ fontSize: 20 }} />, sub: 'Exposed to weather'                  },
+      { value: 'Mixed',   label: 'Mixed',            icon: <SwapHorizIcon  sx={{ fontSize: 20 }} />, sub: 'Garage at home, outdoor elsewhere'   },
     ],
   },
 ]
 
 export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip }: Props) {
   const [started, setStarted] = useState(false)
-  const [step, setStep] = useState(0)
+  const [step,    setStep]    = useState(0)
   const [answers, setAnswers] = useState<Answers>({
     annualKm:     initialProfile ? kmToRangeKey(initialProfile.annualKm) : '',
     primaryUsage: initialProfile?.primaryUsage ?? '',
@@ -121,28 +143,52 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
     parkingType:  initialProfile?.parkingType  ?? '',
   })
 
-  const current = STEPS[step]
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
+  const advancing    = useRef(false)
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const current  = STEPS[step]
   const selected = answers[current.key]
-  const isLast = step === STEPS.length - 1
+  const isLast   = step === STEPS.length - 1
 
-  const select = (value: string) =>
-    setAnswers((prev) => ({ ...prev, [current.key]: value }))
+  const submit = (a: Answers) => {
+    const kmRange = KM_RANGES.find((r) => r.key === a.annualKm)!
+    onComplete({
+      annualKm:     kmRange.value,
+      primaryUsage: a.primaryUsage as DrivingProfile['primaryUsage'],
+      drivingStyle: a.drivingStyle as DrivingProfile['drivingStyle'],
+      usagePattern: a.usagePattern as DrivingProfile['usagePattern'],
+      climateZone:  a.climateZone  as DrivingProfile['climateZone'],
+      parkingType:  a.parkingType  as DrivingProfile['parkingType'],
+    })
+  }
 
-  const handleNext = () => {
-    if (!selected) return
-    if (isLast) {
-      const kmRange = KM_RANGES.find((r) => r.key === answers.annualKm)!
-      onComplete({
-        annualKm:     kmRange.value,
-        primaryUsage: answers.primaryUsage as DrivingProfile['primaryUsage'],
-        drivingStyle: answers.drivingStyle as DrivingProfile['drivingStyle'],
-        usagePattern: answers.usagePattern as DrivingProfile['usagePattern'],
-        climateZone:  answers.climateZone  as DrivingProfile['climateZone'],
-        parkingType:  answers.parkingType  as DrivingProfile['parkingType'],
-      })
-    } else {
-      setStep((s) => s + 1)
+  const selectAndAdvance = (value: string) => {
+    if (advancing.current) return
+    advancing.current = true
+
+    const next: Answers = { ...answers, [current.key]: value }
+    setAnswers(next)
+
+    advanceTimer.current = setTimeout(() => {
+      advancing.current = false
+      if (isLast) submit(next)
+      else setStep((s) => s + 1)
+    }, 200)
+  }
+
+  const goBack = () => {
+    if (advanceTimer.current) {
+      clearTimeout(advanceTimer.current)
+      advanceTimer.current = null
     }
+    advancing.current = false
+    if (step === 0) setStarted(false)
+    else setStep((s) => s - 1)
   }
 
   return (
@@ -150,48 +196,57 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
       {/* Backdrop */}
       <div
         onClick={onSkip}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.6)',
-          zIndex: 300,
-        }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 300 }}
       />
 
-      {/* Sheet */}
+      {/* Floating window */}
       <div style={{
         position: 'fixed',
-        bottom: 0, left: 0, right: 0,
-        maxHeight: '88vh',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(540px, 94vw)',
+        height: '92vh',
         background: 'var(--surface)',
-        borderRadius: '20px 20px 0 0',
+        borderRadius: 20,
         border: '1px solid var(--border)',
-        borderBottom: 'none',
+        overflow: 'hidden',
         zIndex: 301,
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
       }}>
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--border)' }} />
-        </div>
 
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'flex-start',
           justifyContent: 'space-between',
-          padding: '6px 20px 10px',
+          padding: '16px 20px 10px',
         }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>
               Driving Profile
             </div>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 9, color: 'var(--text3)', marginTop: 3,
-            }}>
-              {started ? `Question ${step + 1} of ${STEPS.length}` : 'Helps AI give more precise predictions'}
-            </div>
+            {started ? (
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 6 }}>
+                {STEPS.map((_, i) => (
+                  <div key={i} style={{
+                    height: 5,
+                    width: i === step ? 18 : 5,
+                    borderRadius: 99,
+                    background: 'var(--accent)',
+                    opacity: i < step ? 0.4 : i === step ? 1 : 0.18,
+                    transition: 'width 0.25s ease, opacity 0.25s ease',
+                  }} />
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9, color: 'var(--text3)', marginTop: 3,
+              }}>
+                Helps AI give more precise predictions
+              </div>
+            )}
           </div>
           <button
             onClick={onSkip}
@@ -213,9 +268,9 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
           /* ── Intro screen ─────────────────────────────────────────────── */
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
-              <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
-                <span style={{ fontSize: 56 }}>🚗</span>
-              </div>
+              {/* <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
+                <DirectionsCarIcon sx={{ fontSize: 64, color: 'var(--accent)' }} />
+              </div> */}
 
               <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
                 Would you like to help us predict your car's needs more accurately?
@@ -228,11 +283,11 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                 service predictions to your actual usage — not just generic intervals.
               </div>
 
-              {[
-                { icon: '📍', text: 'Smarter service reminders' },
-                { icon: '⏱️', text: 'Predictions based on your habits' },
-                { icon: '🔧', text: 'Fewer unexpected breakdowns' },
-              ].map(({ icon, text }) => (
+              {([
+                { icon: <NotificationsActiveIcon sx={{ fontSize: 18 }} />, text: 'Smarter service reminders' },
+                { icon: <TrendingUpIcon          sx={{ fontSize: 18 }} />, text: 'Predictions based on your habits' },
+                { icon: <BuildIcon               sx={{ fontSize: 18 }} />, text: 'Fewer unexpected breakdowns' },
+              ] as { icon: ReactNode; text: string }[]).map(({ icon, text }) => (
                 <div
                   key={text}
                   style={{
@@ -243,7 +298,7 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                     borderRadius: 12,
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>{icon}</span>
+                  <div style={{ color: 'var(--accent)', display: 'flex', flexShrink: 0 }}>{icon}</div>
                   <span style={{ fontSize: 13, color: 'var(--text)' }}>{text}</span>
                 </div>
               ))}
@@ -301,11 +356,7 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
           <>
             {/* Progress bar */}
             <div style={{ padding: '0 20px 14px' }}>
-              <div style={{
-                height: 3, borderRadius: 99,
-                background: 'var(--border)',
-                overflow: 'hidden',
-              }}>
+              <div style={{ height: 3, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
                   width: `${((step + 1) / STEPS.length) * 100}%`,
@@ -330,15 +381,15 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
             </div>
 
             {/* Options */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 8 }}>
                 {current.options.map((opt) => {
                   const isSelected = selected === opt.value
                   return (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => select(opt.value)}
+                      onClick={() => selectAndAdvance(opt.value)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 14,
                         padding: '12px 14px',
@@ -350,7 +401,13 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                         transition: 'background 0.15s, border-color 0.15s',
                       }}
                     >
-                      <span style={{ fontSize: 22, flexShrink: 0 }}>{opt.icon}</span>
+                      <div style={{
+                        color: isSelected ? 'var(--accent)' : 'var(--text3)',
+                        display: 'flex', flexShrink: 0,
+                        transition: 'color 0.15s',
+                      }}>
+                        {opt.icon}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                           {opt.label}
@@ -380,14 +437,14 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
 
             {/* Footer */}
             <div style={{
-              padding: '12px 16px 32px',
+              padding: '10px 16px 32px',
               borderTop: '1px solid var(--border)',
               background: 'var(--surface)',
               display: 'flex', gap: 8,
             }}>
               <button
                 type="button"
-                onClick={() => step === 0 ? setStarted(false) : setStep((s) => s - 1)}
+                onClick={goBack}
                 style={{
                   padding: '13px 20px',
                   borderRadius: 14,
@@ -402,27 +459,29 @@ export default function DrivingSurveySheet({ initialProfile, onComplete, onSkip 
                 Back
               </button>
 
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!selected}
-                style={{
-                  flex: 1,
-                  padding: '13px 0',
-                  borderRadius: 14,
-                  background: selected
-                    ? 'linear-gradient(135deg, var(--accent), var(--accent2))'
-                    : 'var(--surface2)',
-                  border: selected ? 'none' : '1px solid var(--border)',
-                  color: selected ? '#fff' : 'var(--text3)',
-                  fontSize: 14, fontWeight: 700,
-                  cursor: selected ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.2s',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {isLast ? 'Save profile' : 'Next →'}
-              </button>
+              {isLast && (
+                <button
+                  type="button"
+                  onClick={() => submit(answers)}
+                  disabled={!selected}
+                  style={{
+                    flex: 1,
+                    padding: '13px 0',
+                    borderRadius: 14,
+                    background: selected
+                      ? 'linear-gradient(135deg, var(--accent), var(--accent2))'
+                      : 'var(--surface2)',
+                    border: selected ? 'none' : '1px solid var(--border)',
+                    color: selected ? '#fff' : 'var(--text3)',
+                    fontSize: 14, fontWeight: 700,
+                    cursor: selected ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s',
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Save profile
+                </button>
+              )}
             </div>
           </>
         )}

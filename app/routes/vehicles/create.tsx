@@ -7,7 +7,7 @@ import { useVehiclesStore } from '@/features/vehicles/vehiclesStore'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
-import { FUEL_TYPES, TRANSMISSION_TYPES, ENGINE_TYPES, VEHICLE_TYPES } from '@/lib/enums'
+import { TRANSMISSION_TYPES, ENGINE_TYPES, VEHICLE_TYPES, ENGINE_TYPE_FOR_FUEL_TYPE } from '@/lib/enums'
 import { formatEnumLabel } from '@/lib/formatters'
 
 const LABEL_OVERRIDES: Record<string, string> = {
@@ -17,9 +17,15 @@ const LABEL_OVERRIDES: Record<string, string> = {
 }
 const eLabel = (t: string) => LABEL_OVERRIDES[t] ?? formatEnumLabel(t)
 
-const FUEL_ALL = Array.from(FUEL_TYPES) as string[]
-const FUEL_PRI = ['Petrol95', 'Petrol98', 'Diesel', 'LPG', 'Electric', 'Hybrid']
-const FUEL_EXT = FUEL_ALL.filter((t) => !FUEL_PRI.includes(t))
+const VEHICLE_FUEL_OPTIONS = [
+  { label: 'Petrol',    value: 'Petrol95' },
+  { label: 'Diesel',    value: 'Diesel' },
+  { label: 'Electric',  value: 'Electric' },
+  { label: 'LPG / Gas', value: 'LPG' },
+  { label: 'CNG',       value: 'CNG' },
+  { label: 'Hydrogen',  value: 'Hydrogen' },
+  { label: 'Other',     value: 'Other' },
+]
 
 const TRANS_PRI = ['Manual', 'Automatic', 'SemiAutomatic']
 const TRANS_EXT = TRANSMISSION_TYPES.filter((t) => !TRANS_PRI.includes(t))
@@ -83,7 +89,6 @@ export default function AddVehicle() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showMoreFuel, setShowMoreFuel] = useState(false)
   const [showMoreTrans, setShowMoreTrans] = useState(false)
   const [showMoreEngine, setShowMoreEngine] = useState(false)
   const [showMoreVehicle, setShowMoreVehicle] = useState(false)
@@ -91,7 +96,14 @@ export default function AddVehicle() {
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
   const pick = (field: string) => (v: string) =>
-    setForm((prev) => ({ ...prev, [field]: v }))
+    setForm((prev) => {
+      const next = { ...prev, [field]: v }
+      if (field === 'fuelType') {
+        const derived = ENGINE_TYPE_FOR_FUEL_TYPE[v]
+        if (derived) next.engineType = derived
+      }
+      return next
+    })
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -240,7 +252,13 @@ export default function AddVehicle() {
 
         <div style={{ marginBottom: 12 }}>
           {fieldLabel('Fuel type')}
-          {chipGroup(FUEL_ALL, FUEL_PRI, FUEL_EXT, form.fuelType, pick('fuelType'), showMoreFuel, setShowMoreFuel)}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {VEHICLE_FUEL_OPTIONS.map(({ label, value }) => (
+              <button key={value} type="button" onClick={() => pick('fuelType')(value)} style={chip(form.fuelType === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div style={{ marginBottom: 12 }}>

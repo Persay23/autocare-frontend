@@ -21,6 +21,7 @@ export interface Vehicle {
   engineType: string
   fuelType: string
   mileage: number
+  averageKmPerYear?: number
 }
 
 /** Raw component entity — returned by CRUD endpoints */
@@ -68,6 +69,8 @@ export interface ComponentHealth {
   remainingKm: number
   status: string
   installationDate?: string        // included in some health responses
+  aiEstimatedNextServiceDate?: string
+  aiGeneratedAt?: string
 }
 
 export interface MaintenanceRecordComponent {

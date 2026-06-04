@@ -13,6 +13,38 @@ export const FUEL_TYPES = [
 
 export type FuelType = (typeof FUEL_TYPES)[number]
 
+export const FUEL_TYPES_FOR_ENGINE: Record<string, readonly string[]> = {
+  Petrol:       ['Petrol95', 'Petrol98', 'E85', 'LPG', 'Other'],
+  Diesel:       ['Diesel', 'PremiumDiesel', 'Other'],
+  FullElectric: ['Electric', 'Other'],
+  Hybrid:       ['Petrol95', 'Petrol98', 'Electric', 'Other'],
+  PlugInHybrid: ['Petrol95', 'Petrol98', 'E85', 'Electric', 'Other'],
+  Hydrogen:     ['Hydrogen', 'Other'],
+  Other:        FUEL_TYPES,
+}
+
+export const FUEL_TYPES_FOR_FUEL_TYPE: Record<string, readonly string[]> = {
+  Petrol95:      ['Petrol95', 'Petrol98', 'E85', 'LPG', 'Other'],
+  Petrol98:      ['Petrol95', 'Petrol98', 'E85', 'LPG', 'Other'],
+  E85:           ['Petrol95', 'Petrol98', 'E85', 'Other'],
+  LPG:           ['Petrol95', 'Petrol98', 'LPG', 'Other'],
+  CNG:           ['CNG', 'Other'],
+  Diesel:        ['Diesel', 'PremiumDiesel', 'Other'],
+  PremiumDiesel: ['Diesel', 'PremiumDiesel', 'Other'],
+  Electric:      ['Electric', 'Other'],
+  Hydrogen:      ['Hydrogen', 'Other'],
+  Other:         FUEL_TYPES,
+}
+
+export const ENGINE_TYPE_FOR_FUEL_TYPE: Record<string, string> = {
+  Petrol95: 'Petrol', Petrol98: 'Petrol', E85: 'Petrol', LPG: 'Petrol',
+  Diesel: 'Diesel', PremiumDiesel: 'Diesel',
+  CNG: 'Petrol',
+  Electric: 'FullElectric',
+  Hydrogen: 'Hydrogen',
+  Other: 'Other',
+}
+
 export const FUEL_TYPE = {
   Petrol95: 'Petrol95',
   Petrol98: 'Petrol98',
@@ -27,19 +59,13 @@ export const FUEL_TYPE = {
 } as const
 
 export const SERVICE_TYPES = [
-  // 'OilChange',
-  'Engine',
-  'Transmission',
-  'Brakes',
-  'Suspension',
-  'Electrical',
-  'Cooling',
-  'Fuel',
-  'Exhaust',
-  'Tyres',
-  'Body',
-  'Inspection',
-  'Other',
+  { value: 'Inspection',    label: 'Inspection' },
+  { value: 'RoutineService', label: 'Routine Service' },
+  { value: 'Repair',        label: 'Repair' },
+  { value: 'TyreService',   label: 'Tyre Service' },
+  { value: 'BodyAndPaint',  label: 'Body & Paint' },
+  { value: 'Electrical',    label: 'Electrical' },
+  { value: 'Other',         label: 'Other' },
 ]
 
 export const COMPONENT_TYPES = [

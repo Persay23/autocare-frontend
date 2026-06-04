@@ -36,11 +36,15 @@ export default function Login() {
         minHeight: '100vh',
         background: 'var(--bg)',
         display: 'flex',
-        flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
-        padding: '0 0 40px',
       }}
     >
+      <div style={{
+        width: '100%', maxWidth: 420,
+        padding: '0 0 40px',
+        display: 'flex', flexDirection: 'column',
+      }}>
       <div style={{ textAlign: 'center', padding: '40px 22px 32px' }}>
         <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
           Auto<span style={{ color: 'var(--accent)' }}>Care</span>
@@ -134,6 +138,7 @@ export default function Login() {
           </Link>
         </div>
       </form>
+      </div>
     </div>
   )
 }

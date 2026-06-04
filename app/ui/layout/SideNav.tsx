@@ -5,6 +5,7 @@ import BarChartIcon from '@mui/icons-material/BarChart'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
 import TimelineIcon from '@mui/icons-material/Timeline'
 import PersonIcon from '@mui/icons-material/Person'
+import logo from '@/assets/Logo.png'
 
 const NAV_ITEMS: { to: string; icon: ElementType; label: string }[] = [
   { to: '/',         icon: HomeIcon,         label: 'Home'     },
@@ -14,9 +15,19 @@ const NAV_ITEMS: { to: string; icon: ElementType; label: string }[] = [
   { to: '/profile',  icon: PersonIcon,        label: 'Profile'  },
 ]
 
+const ITEM_HEIGHT = 40  // 10px padding top + 20px content + 10px padding bottom
+const ITEM_GAP    = 2
+const SLOT_HEIGHT = ITEM_HEIGHT + ITEM_GAP
+
 export default function SideNav() {
   const location = useLocation()
   const onVehicleRoute = location.pathname.startsWith('/vehicles/')
+
+  const activeIndex = NAV_ITEMS.findIndex((item) => {
+    if (item.to === '/carpark' && onVehicleRoute) return true
+    if (item.to === '/') return location.pathname === '/'
+    return location.pathname.startsWith(item.to)
+  })
 
   return (
     <nav style={{
@@ -30,25 +41,29 @@ export default function SideNav() {
       overflowY: 'auto',
     }}>
       {/* Brand */}
-      <div style={{
-        padding: '0 20px 24px',
-        fontFamily: "'Outfit', sans-serif",
-        fontWeight: 800,
-        fontSize: 17,
-        color: 'var(--accent)',
-        letterSpacing: '-0.01em',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-      }}>
-        <DirectionsCarIcon sx={{ fontSize: 22 }} />
-        AutoCare
+      <div style={{ padding: '0 20px 24px' }}>
+        <img src={logo} alt="AutoCare" style={{ height: 24, width: 'auto', display: 'block' }} />
       </div>
 
       <div style={{ height: 1, background: 'var(--border)', margin: '0 16px 12px' }} />
 
       {/* Nav items */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px' }}>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: ITEM_GAP, padding: '0 10px' }}>
+        {/* Sliding indicator */}
+        {activeIndex >= 0 && (
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            height: ITEM_HEIGHT,
+            borderRadius: 8,
+            background: 'rgba(108,99,255,0.12)',
+            transform: `translateY(${activeIndex * SLOT_HEIGHT}px)`,
+            transition: 'transform 0.28s cubic-bezier(0.34,1.56,0.64,1)',
+            pointerEvents: 'none',
+          }} />
+        )}
+
         {NAV_ITEMS.map((item) => {
           const NavIcon = item.icon
           const isCarPark = item.to === '/carpark'
@@ -69,9 +84,11 @@ export default function SideNav() {
                   fontFamily: "'Outfit', sans-serif",
                   fontWeight: active ? 600 : 400,
                   color: active ? 'var(--accent)' : 'var(--text2)',
-                  background: active ? 'rgba(108, 99, 255, 0.12)' : 'transparent',
+                  background: 'transparent',
                   textDecoration: 'none',
-                  transition: 'all 0.15s',
+                  transition: 'color 0.15s, font-weight 0.15s',
+                  position: 'relative',
+                  zIndex: 1,
                 }
               }}
             >

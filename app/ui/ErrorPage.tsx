@@ -32,6 +32,7 @@ export default function ErrorPage() {
           : 'An unexpected error occurred. Try going back or refreshing the page.'}
       </div>
 
+
       <div style={{ display: 'flex', gap: 10 }}>
         <button
           onClick={() => navigate(-1)}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/auth/useAuth'
+import BottomNav from '@/ui/layout/BottomNav'
+import { useIsDesktop } from '@/lib/useIsDesktop'
 import DrivingSurveySheet from '@/ui/DrivingSurveySheet'
 import { markSkipped, hasSkipped, clearSkipped } from '@/lib/drivingProfile'
 import type { DrivingProfile } from '@/lib/drivingProfile'
@@ -13,6 +15,8 @@ export default function ProtectedRoute() {
   const { fetch: fetchProfile, save: saveProfile, exists: profileExists, loadedFor } = useDrivingProfileStore()
 
   // Trigger fetch — store deduplicates concurrent/duplicate calls
+  const isDesktop = useIsDesktop()
+
   useEffect(() => {
     if (!user || hasSkipped(user.id)) return
     fetchProfile(user.id)
@@ -63,6 +67,19 @@ export default function ProtectedRoute() {
   return (
     <>
       <Outlet />
+      {!isDesktop && (
+        <div style={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: 400,
+          zIndex: 100,
+        }}>
+          <BottomNav />
+        </div>
+      )}
       {showSurvey && (
         <DrivingSurveySheet
           onComplete={handleComplete}

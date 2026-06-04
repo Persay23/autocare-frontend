@@ -37,8 +37,9 @@ export default function Profile() {
     save: saveProfile,
   } = useDrivingProfileStore()
   const [isDark, setIsDark] = useState(() => getTheme() !== 'light')
+  const [notifOpen, setNotifOpen] = useState(false)
   const { currency, setCurrency } = useCurrencyStore()
-  const { prefs: notifPrefs, toggle: toggleNotif } = useNotificationsStore()
+  const { prefs: notifPrefs, toggle: toggleNotif, setAll: setAllNotif } = useNotificationsStore()
 
   const { vehicles, fetch: fetchVehicles } = useVehiclesStore()
   const { summaries, fetchAll: fetchExpenses } = useExpensesStore()
@@ -513,19 +514,88 @@ export default function Profile() {
 
       {/* Notifications */}
       <div style={{ margin: '0 22px 12px' }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10, color: 'var(--text3)',
-          textTransform: 'uppercase', letterSpacing: '0.12em',
-          marginBottom: 8,
-        }}>
-          Notifications
-        </div>
+        <button
+          type="button"
+          onClick={() => setNotifOpen((p) => !p)}
+          style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            width: '100%', marginBottom: 8,
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          }}
+        >
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10, color: 'var(--text3)',
+            textTransform: 'uppercase', letterSpacing: '0.12em',
+          }}>
+            Notifications
+          </span>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 14, color: 'var(--text2)',
+            transition: 'transform 0.2s',
+            display: 'inline-block',
+            transform: notifOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+          }}>
+            ▾
+          </span>
+        </button>
+
         <div style={{
           background: 'var(--surface2)', border: '1px solid var(--border)',
           borderRadius: 14, overflow: 'hidden',
         }}>
-          {([
+          {/* Turn on/off all — always visible */}
+          {(() => {
+            const vals = Object.values(notifPrefs)
+            const onCount = vals.filter(Boolean).length
+            const allOn = onCount === vals.length
+            const anyOn = onCount > 0
+            const bg = allOn ? 'var(--accent)' : anyOn ? '#fbbf24' : 'var(--surface3, #1e2035)'
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 16px',
+                borderBottom: notifOpen ? '1px solid var(--border)' : 'none',
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                    Turn on/off all
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 2 }}>
+                    {allOn ? 'All notifications enabled' : anyOn ? `${onCount} of ${vals.length} enabled` : 'All notifications disabled'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAllNotif(!allOn)}
+                  style={{
+                    position: 'relative',
+                    width: 48, height: 26, borderRadius: 13,
+                    border: 'none', flexShrink: 0,
+                    background: bg, cursor: 'pointer',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: 3, left: anyOn ? 25 : 3,
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.2s',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  }} />
+                </button>
+              </div>
+            )
+          })()}
+
+          {notifOpen && ([
+            {
+              key: 'alertBeforeLimit'  as const,
+              label: 'Alert Before Limit',
+              desc:  'Notify when a component is approaching its service limit',
+              soon:  false,
+            },
             {
               key: 'componentHealth'   as const,
               label: 'Component Health',
@@ -548,13 +618,13 @@ export default function Profile() {
               key: 'aiInsights'        as const,
               label: 'AI Insights',
               desc:  'New AI predictions & recommendations',
-              soon:  true,
+              soon:  false,
             },
             {
               key: 'diagnosisFollowup' as const,
               label: 'Diagnosis Follow-up',
               desc:  'Reminders after urgent AI diagnoses',
-              soon:  true,
+              soon:  false,
             },
           ]).map(({ key, label, desc, soon }, i, arr) => (
             <div

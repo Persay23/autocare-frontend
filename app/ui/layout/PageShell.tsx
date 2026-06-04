@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import BottomNav from './BottomNav'
 import SideNav from './SideNav'
 import { useIsDesktop } from '@/lib/useIsDesktop'
 
@@ -8,7 +7,7 @@ export default function PageShell({ children }: { children: ReactNode }) {
 
   if (isDesktop) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface)' }}>
         {/* Fixed sidebar */}
         <div style={{
           position: 'fixed',
@@ -29,7 +28,7 @@ export default function PageShell({ children }: { children: ReactNode }) {
           minHeight: '100vh',
           overflowY: 'auto',
         }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ maxWidth: 680, margin: '0 auto' }}>
             {children}
           </div>
         </div>
@@ -44,26 +43,13 @@ export default function PageShell({ children }: { children: ReactNode }) {
       minHeight: '100vh',
       background: 'var(--bg)',
     }}>
-      {/* Scrollable content — paddingBottom clears the fixed nav */}
+      {/* Scrollable content — paddingBottom clears the floating nav */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        paddingBottom: 80,
+        paddingBottom: 96,
       }}>
         {children}
-      </div>
-
-      {/* Fixed bottom nav */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '100%',
-        maxWidth: 430,
-        zIndex: 100,
-      }}>
-        <BottomNav />
       </div>
     </div>
   )

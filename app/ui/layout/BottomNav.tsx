@@ -18,40 +18,71 @@ export default function BottomNav() {
   const location = useLocation()
   const onVehicleRoute = location.pathname.startsWith('/vehicles/')
 
+  const activeIndex = NAV_ITEMS.findIndex((item) => {
+    if (item.to === '/carpark' && onVehicleRoute) return true
+    if (item.to === '/') return location.pathname === '/'
+    return location.pathname.startsWith(item.to)
+  })
+
   return (
     <nav style={{
-      display: 'flex',
-      padding: '10px 8px 14px',
-      borderTop: '1px solid var(--border)',
-      background: 'var(--surface)',
+      padding: '6px 6px 8px',
+      background: 'rgba(18,18,28,0.82)',
+      backdropFilter: 'blur(24px)',
+      WebkitBackdropFilter: 'blur(24px)',
+      borderRadius: 22,
+      border: '1px solid var(--border)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
     }}>
-      {NAV_ITEMS.map((item) => {
-        const NavIcon = item.icon
-        const isCarPark = item.to === '/carpark'
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            style={({ isActive }) => ({
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 3,
-              fontSize: 8,
-              color: (isActive || (isCarPark && onVehicleRoute)) ? 'var(--accent)' : 'var(--text3)',
-              textDecoration: 'none',
-              fontFamily: "'JetBrains Mono', monospace",
-              letterSpacing: '0.05em',
-              transition: 'color 0.15s',
-            })}
-          >
-            <NavIcon sx={{ fontSize: 20 }} />
-            {item.label}
-          </NavLink>
-        )
-      })}
+      <div style={{ position: 'relative', display: 'flex' }}>
+        {/* Sliding indicator */}
+        {activeIndex >= 0 && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            width: `${100 / NAV_ITEMS.length}%`,
+            borderRadius: 14,
+            background: 'rgba(108,99,255,0.2)',
+            transform: `translateX(${activeIndex * 100}%)`,
+            transition: 'transform 0.28s cubic-bezier(0.34,1.56,0.64,1)',
+            pointerEvents: 'none',
+          }} />
+        )}
+
+        {NAV_ITEMS.map((item) => {
+          const NavIcon = item.icon
+          const isCarPark = item.to === '/carpark'
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              style={({ isActive }) => {
+                const active = isActive || (isCarPark && onVehicleRoute)
+                return {
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 3,
+                  padding: '5px 0 2px',
+                  fontSize: 8,
+                  color: active ? 'var(--accent)' : 'var(--text3)',
+                  textDecoration: 'none',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: '0.05em',
+                  transition: 'color 0.15s',
+                  position: 'relative',
+                  zIndex: 1,
+                }
+              }}
+            >
+              <NavIcon sx={{ fontSize: 20 }} />
+              {item.label}
+            </NavLink>
+          )
+        })}
+      </div>
     </nav>
   )
 }

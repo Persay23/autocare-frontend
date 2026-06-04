@@ -9,7 +9,6 @@ import EditExpense    from './global/expenses/edit'
 import Timeline       from './global/timeline'
 import Profile        from './global/profile'
 import CreateRecord    from './records/create'
-import CreateFuelEntry from './fuel/create'
 
 export const globalRoutes: RouteObject[] = [
   {
@@ -24,7 +23,6 @@ export const globalRoutes: RouteObject[] = [
       { path: '/timeline',     element: <Timeline /> },
       { path: '/profile',      element: <Profile /> },
       { path: '/records/new',  element: <CreateRecord /> },
-      { path: '/fuel/new',     element: <CreateFuelEntry /> },
     ],
   },
 ]

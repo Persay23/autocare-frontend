@@ -61,10 +61,10 @@ export default function ExpenseDetail() {
   const removeGeneralExpense = useExpensesStore((s) => s.removeGeneralExpense)
   const { vehicles, fetch: fetchVehicles } = useVehiclesStore()
 
-  const [expense, setExpense]           = useState<GeneralExpense | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [deleting, setDeleting]         = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [expense, setExpense]               = useState<GeneralExpense | null>(null)
+  const [loading, setLoading]               = useState(true)
+  const [deleting, setDeleting]             = useState(false)
+  const [confirmDelete, setConfirmDelete]   = useState(false)
 
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
@@ -97,10 +97,11 @@ export default function ExpenseDetail() {
       <div style={{ padding: 22, color: 'var(--text2)' }}>Expense not found.</div>
     </PageShell>
   )
-  const vehicle       = vehicles.find((v) => v.vehicleId === expense.vehicleId)
-  const vehicleName   = vehicle ? `${vehicle.brand} ${vehicle.model}` : null
-  const color         = CATEGORY_COLORS[expense.expenseCategory] ?? 'var(--text2)'
-  const label         = CATEGORY_LABELS[expense.expenseCategory] ?? expense.expenseCategory
+
+  const vehicle     = vehicles.find((v) => v.vehicleId === expense.vehicleId)
+  const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : null
+  const color       = CATEGORY_COLORS[expense.expenseCategory] ?? 'var(--text2)'
+  const label       = CATEGORY_LABELS[expense.expenseCategory] ?? expense.expenseCategory
   const Icon: ElementType = EXPENSE_CATEGORY_ICONS[expense.expenseCategory] ?? EXPENSE_CATEGORY_ICONS.Other
 
   const formattedDate = new Date(expense.date).toLocaleDateString('en-GB', {
@@ -134,55 +135,64 @@ export default function ExpenseDetail() {
         </button>
       </div>
 
-      {/* Header: date + amount + category */}
+      {/* Header */}
       <div style={{ padding: '6px 22px 20px' }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-          color: 'var(--text3)', marginBottom: 8,
-        }}>
-          {formattedDate}
-        </div>
-
-        {/* Amount */}
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 48, fontWeight: 800, lineHeight: 1, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-            {formatMoney(expense.cost, currency)}
-          </span>
-        </div>
-
-        {/* Category pill */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: `color-mix(in srgb, ${color} 18%, transparent)`,
-          border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
-          borderRadius: 999, padding: '6px 12px', marginBottom: 10,
-        }}>
-          <Icon sx={{ fontSize: 14, color }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color }}>{label}</span>
-        </div>
-
-        {/* Vehicle */}
-        {vehicleName && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)',
-          }}>
-            <DirectionsCarIcon sx={{ fontSize: 14 }} />
-            {vehicleName}
+        {/* Row 1: date (left) · vehicle (right) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)' }}>
+            {formattedDate}
           </div>
-        )}
+          {vehicleName && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)' }}>
+              <DirectionsCarIcon sx={{ fontSize: 14 }} />
+              {vehicleName}
+            </div>
+          )}
+        </div>
 
-        {/* Recurring badge */}
-        {expense.isRecurring && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
-            color: 'var(--accent4)',
-            background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
-            padding: '3px 9px', borderRadius: 4, letterSpacing: '0.06em',
-          }}>
-            ↻ RECURRING · every {expense.recurrenceEvery} {(expense.recurrenceInterval ?? '').toLowerCase()}
+        {/* Row 2+3: left col (category + recurring) · right col (price) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: `color-mix(in srgb, ${color} 18%, transparent)`,
+              border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+              borderRadius: 999, padding: '6px 12px',
+            }}>
+              <Icon sx={{ fontSize: 14, color }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color }}>{label}</span>
+            </div>
+
+            {expense.isRecurring ? (
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+                color: 'var(--accent4)',
+                background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
+                padding: '6px 9px', borderRadius: 4, letterSpacing: '0.06em',
+                lineHeight: 1.7,
+              }}>
+                <div>↻ RECURRING</div>
+                <div>every {expense.recurrenceEvery} {(expense.recurrenceInterval ?? '').toLowerCase()}</div>
+              </div>
+            ) : (
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+                color: 'var(--text3)',
+                background: 'rgba(123,128,168,0.08)', border: '1px solid rgba(123,128,168,0.2)',
+                padding: '6px 9px', borderRadius: 4, letterSpacing: '0.06em',
+                lineHeight: 1.7,
+              }}>
+                <div>↻ NEVER</div>
+              </div>
+            )}
           </div>
-        )}
+
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: 52, fontWeight: 800, lineHeight: 1, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+              {formatMoney(expense.cost, currency)}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Details rows */}
@@ -193,13 +203,8 @@ export default function ExpenseDetail() {
       }}>
         {expense.description && <Row label="Description" value={expense.description} />}
         {expense.notes       && <Row label="Notes"       value={expense.notes} italic />}
-        <Row label="Recurring" value={expense.isRecurring ? 'Yes' : 'No'} />
-        {expense.isRecurring && nextDate && (
-          <Row label="Next occurrence" value={nextDate} />
-        )}
-        {expense.isRecurring && endDate && (
-          <Row label="Ends on" value={endDate} />
-        )}
+        {expense.isRecurring && nextDate && <Row label="Next occurrence" value={nextDate} />}
+        {expense.isRecurring && endDate  && <Row label="Ends on"         value={endDate} />}
       </div>
 
       {/* Edit button */}
