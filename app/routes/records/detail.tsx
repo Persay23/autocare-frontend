@@ -180,22 +180,20 @@ export default function RecordDetail() {
           <div style={{
             margin: '0 22px 10px',
             background: 'var(--surface2)', border: '1px solid var(--border)',
-            borderRadius: 14,
+            borderRadius: 14, overflow: 'hidden',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px' }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text3)' }}>Technician / Vendor</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
-                }}>
-                  {(record.technicianName?.[0] ?? record.vendorOrShop?.[0] ?? '?').toUpperCase()}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+              <div style={{ padding: '14px 16px', borderRight: '1px solid var(--border)' }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginBottom: 5 }}>Technician</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: record.technicianName ? 'var(--text)' : 'var(--text3)' }}>
+                  {record.technicianName ?? '—'}
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-                  {[record.technicianName, record.vendorOrShop].filter(Boolean).join(' / ')}
-                </span>
+              </div>
+              <div style={{ padding: '14px 16px' }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', marginBottom: 5 }}>Vendor / Shop</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: record.vendorOrShop ? 'var(--text)' : 'var(--text3)' }}>
+                  {record.vendorOrShop ?? '—'}
+                </div>
               </div>
             </div>
           </div>

@@ -15,13 +15,15 @@ import { useCurrencyStore, SYMBOLS, toPLN, RATES } from '@/features/currency/cur
 import { getPrecedingMinMileage, isMileageValid, mileageHint, type EventEntry } from '@/lib/mileageBounds'
 import type { MaintenanceRecord } from '@/lib/types'
 
-const QUICK_TYPES = [
-  { label: 'Oil service',  serviceType: 'Engine',     name: 'Oil service' },
-  { label: 'Brake pads',  serviceType: 'Brakes',     name: 'Brake pads replacement' },
-  { label: 'Tyre change', serviceType: 'Tyres',      name: 'Tyre change' },
-  { label: 'Inspection',  serviceType: 'Inspection', name: 'Vehicle inspection' },
-  { label: 'Air filter',  serviceType: 'Engine',     name: 'Air filter replacement' },
-]
+const SERVICE_TYPES = [
+  'Inspection',
+  'RoutineService',
+  'Repair',
+  'TyreService',
+  'BodyAndPaint',
+  'Electrical',
+  'Other',
+] as const
 
 const fmtDate = (iso: string) => {
   if (!iso) return '—'
@@ -93,7 +95,6 @@ export default function EditRecord() {
   const [siblingEvents, setSiblingEvents] = useState<EventEntry[]>([])
   const [origCompletedAt, setOrigCompletedAt] = useState<string | null | undefined>(undefined)
   const [origMileage, setOrigMileage] = useState<number | null | undefined>(undefined)
-  const [customMode, setCustomMode] = useState(false)
   const [showMoreDetails, setShowMoreDetails] = useState(false)
 
   useEffect(() => {
@@ -129,8 +130,6 @@ export default function EditRecord() {
 
       const loadedServiceType = r.serviceType ?? ''
       const loadedServiceName = r.serviceName ?? ''
-      const qt = QUICK_TYPES.find((q) => q.serviceType === loadedServiceType && q.name === loadedServiceName)
-      if (!qt) setCustomMode(true)
       if (r.invoiceNumber || r.notes || r.invoiceImageUrl) setShowMoreDetails(true)
 
       const dateStr = r.startedAt ?? r.serviceDate ?? ''
@@ -173,11 +172,6 @@ export default function EditRecord() {
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((prev) => prev ? { ...prev, [field]: e.target.value } : prev)
-
-  const pickQuickType = (qt: typeof QUICK_TYPES[0]) => {
-    setCustomMode(false)
-    setForm((prev) => prev ? { ...prev, serviceType: qt.serviceType, serviceName: qt.name } : prev)
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -241,8 +235,6 @@ export default function EditRecord() {
     cursor: 'pointer', transition: 'all 0.15s',
   })
 
-  const activeQT = QUICK_TYPES.find((qt) => qt.name === form.serviceName && qt.serviceType === form.serviceType)
-
   return (
     <PageShell>
       <button onClick={goBack} style={backBtnStyle}>← Record</button>
@@ -264,6 +256,15 @@ export default function EditRecord() {
 
           {/* Service type */}
           <div style={cardStyle}>
+            {fieldLbl('Service name')}
+            <input
+              value={form.serviceName}
+              onChange={set('serviceName')}
+              placeholder="e.g. Oil change, Timing belt replacement..."
+              style={{ ...inputStyle, marginBottom: 12 }}
+              onFocus={onFocus}
+              onBlur={onBlur}
+            />
             <div style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
               color: 'var(--text3)', textTransform: 'uppercase' as const, letterSpacing: '0.14em',
@@ -272,52 +273,30 @@ export default function EditRecord() {
               Service type
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {QUICK_TYPES.map((qt) => (
-                <button key={qt.label} type="button" onClick={() => pickQuickType(qt)} style={chip(activeQT?.label === qt.label)}>
-                  {qt.label}
+              {SERVICE_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm((p) => p ? { ...p, serviceType: t } : p)}
+                  style={chip(form.serviceType === t)}
+                >
+                  {formatEnumLabel(t)}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomMode(true)
-                  setForm((p) => p ? { ...p, serviceType: 'Other', serviceName: '' } : p)
-                }}
-                style={chip(customMode && !activeQT)}
-              >
-                + custom
-              </button>
             </div>
-            {customMode && !activeQT && (
-              <div style={{ marginTop: 10 }}>
-                <input
-                  value={form.serviceName}
-                  onChange={set('serviceName')}
-                  placeholder="e.g. Timing belt, AC service..."
-                  style={inputStyle}
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                />
-              </div>
-            )}
-            {activeQT && (
-              <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--accent)' }}>
-                ✓ {form.serviceName} · {formatEnumLabel(form.serviceType)}
-              </div>
-            )}
           </div>
 
           {/* When & where */}
           <div style={cardStyle}>
             <SectionHead title="When & where" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Started')}
-                <input type="date" value={form.startedAt} onChange={set('startedAt')} required style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input type="date" value={form.startedAt} onChange={set('startedAt')} required style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Completed', true)}
-                <input type="date" value={form.completedAt} onChange={set('completedAt')} style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input type="date" value={form.completedAt} onChange={set('completedAt')} style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
             </div>
 
