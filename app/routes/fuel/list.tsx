@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { getFuelByVehicle } from '@/features/fuel/api'
 import { dedupFetch } from '@/lib/dedup'
 import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
 import { formatEnumLabel } from '@/lib/formatters'
-import { useCurrencyStore, formatMoney, RATES, SYMBOLS } from '@/features/currency/currencyStore'
+import { useCurrencyStore, formatMoney, RATES, SYMBOLS, toPLN } from '@/features/currency/currencyStore'
 import type { FuelEntry } from '@/lib/types'
+import FuelEntryModal from '@/ui/FuelEntryModal'
 
 type SortKey = 'newest' | 'oldest' | 'cost-desc' | 'litres-desc' | 'price-per-l'
 
@@ -21,31 +22,39 @@ function entryId(e: FuelEntry) { return e.liquidEntryId ?? e.fuelEntryId! }
 
 export default function VehicleFuel() {
   const { vehicleId } = useParams()
-  const navigate = useNavigate()
   const { currency } = useCurrencyStore()
   const [entries, setEntries] = useState<FuelEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [modalEntryId, setModalEntryId] = useState<number | null | undefined>(undefined)
   const [sort, setSort] = useState<SortKey>('newest')
   const [filter, setFilter] = useState<string>('all')
   const [showSort, setShowSort] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
-  const sortRef = useRef<HTMLDivElement>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
+  const [showCostPLPanel, setShowCostPLPanel] = useState(false)
+  const [showStationFilter, setShowStationFilter] = useState(false)
+  const [costPLMin, setCostPLMin] = useState('')
+  const [costPLMax, setCostPLMax] = useState('')
+  const [stationFilter, setStationFilter] = useState('all')
+  const sortRef    = useRef<HTMLDivElement>(null)
+  const filterRef  = useRef<HTMLDivElement>(null)
+  const stationRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
-    dedupFetch(`fuel-${vehicleId}`, () => getFuelByVehicle(vehicleId!))
+    dedupFetch(`fuel-${vehicleId}-${refreshKey}`, () => getFuelByVehicle(vehicleId!))
       .then((res) => { if (!cancelled) setEntries(res.data) })
       .catch(() => { if (!cancelled) setError('Failed to load fuel entries.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [vehicleId])
+  }, [vehicleId, refreshKey])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false)
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilter(false)
+      if (sortRef.current    && !sortRef.current.contains(e.target as Node))    setShowSort(false)
+      if (filterRef.current  && !filterRef.current.contains(e.target as Node))  setShowFilter(false)
+      if (stationRef.current && !stationRef.current.contains(e.target as Node)) setShowStationFilter(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -60,10 +69,18 @@ export default function VehicleFuel() {
     return [{ key: 'all', label: `All (${entries.length})` }, ...typeOpts]
   }, [entries])
 
+  const stations = useMemo(() => {
+    const names = [...new Set(entries.map((e) => e.notes).filter(Boolean))] as string[]
+    return names.sort()
+  }, [entries])
+
   const filteredEntries = useMemo(() => {
-    if (filter === 'all') return entries
-    return entries.filter((e) => (e.fuelType ?? e.liquidType ?? 'Other') === filter)
-  }, [entries, filter])
+    let result = filter === 'all' ? entries : entries.filter((e) => (e.fuelType ?? e.liquidType ?? 'Other') === filter)
+    if (stationFilter !== 'all') result = result.filter((e) => e.notes === stationFilter)
+    if (costPLMin) result = result.filter((e) => e.amount > 0 && (e.cost / e.amount) >= toPLN(parseFloat(costPLMin), currency))
+    if (costPLMax) result = result.filter((e) => e.amount > 0 && (e.cost / e.amount) <= toPLN(parseFloat(costPLMax), currency))
+    return result
+  }, [entries, filter, stationFilter, costPLMin, costPLMax, currency])
 
   const sortedEntries = useMemo(() => {
     return filteredEntries.slice().sort((a, b) => {
@@ -132,7 +149,7 @@ export default function VehicleFuel() {
       }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Fuel</div>
         <button
-          onClick={() => navigate(`/vehicles/${vehicleId}/fuel/new`)}
+          onClick={() => setModalEntryId(null)}
           style={{
             display: 'inline-flex', alignItems: 'center',
             padding: '6px 14px', borderRadius: 10,
@@ -215,7 +232,7 @@ export default function VehicleFuel() {
 
       {/* Filter + Sort dropdowns */}
       {!loading && !error && entries.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, padding: '0 22px 12px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '0 22px 12px' }}>
 
           {/* Filter */}
           <div ref={filterRef} style={{ position: 'relative' }}>
@@ -225,6 +242,7 @@ export default function VehicleFuel() {
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
+                whiteSpace: 'nowrap',
                 border: (showFilter || filter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
                 background: (showFilter || filter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
                 color: (showFilter || filter !== 'all') ? 'var(--accent)' : 'var(--text3)',
@@ -269,6 +287,7 @@ export default function VehicleFuel() {
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
+                whiteSpace: 'nowrap',
                 border: showSort ? '1px solid var(--accent)' : '1px solid var(--border)',
                 background: showSort ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
                 color: showSort ? 'var(--accent)' : 'var(--text3)',
@@ -304,6 +323,84 @@ export default function VehicleFuel() {
               </div>
             )}
           </div>
+
+          {/* Cost/L range pill */}
+          <button
+            onClick={() => { setShowCostPLPanel((p) => !p) }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
+              whiteSpace: 'nowrap',
+              border: (showCostPLPanel || costPLMin || costPLMax) ? '1px solid var(--accent)' : '1px solid var(--border)',
+              background: (showCostPLPanel || costPLMin || costPLMax) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
+              color: (showCostPLPanel || costPLMin || costPLMax) ? 'var(--accent)' : 'var(--text3)',
+              transition: 'all 0.15s',
+            }}
+          >
+            Price range
+          </button>
+
+          {/* Station filter pill — only when 2+ unique station names exist */}
+          {stations.length >= 2 && (
+            <div ref={stationRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => { setShowStationFilter((p) => !p) }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  border: (showStationFilter || stationFilter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: (showStationFilter || stationFilter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
+                  color: (showStationFilter || stationFilter !== 'all') ? 'var(--accent)' : 'var(--text3)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {stationFilter === 'all' ? 'Station' : stationFilter} ▾
+              </button>
+              {showStationFilter && (
+                <div style={{
+                  position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 10, overflow: 'hidden', minWidth: 160,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                }}>
+                  {[{ key: 'all', label: 'All stations' }, ...stations.map((s) => ({ key: s, label: s }))].map(({ key, label }) => (
+                    <button key={key}
+                      onClick={() => { setStationFilter(key); setShowStationFilter(false) }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '11px 14px', background: 'none', border: 'none',
+                        borderBottom: '1px solid var(--border)',
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                        color: stationFilter === key ? 'var(--accent)' : 'var(--text2)',
+                        fontWeight: stationFilter === key ? 600 : 400, cursor: 'pointer',
+                      }}
+                    >
+                      {stationFilter === key && '✓ '}{label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && entries.length > 0 && showCostPLPanel && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0 22px 10px', flexWrap: 'wrap' }}>
+          <input type="number" min="0" step="0.01" placeholder={`Min ${SYMBOLS[currency]}/L`} value={costPLMin} onChange={(e) => setCostPLMin(e.target.value)}
+            style={{ padding: '5px 8px', width: 80, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text)', outline: 'none' }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>–</span>
+          <input type="number" min="0" step="0.01" placeholder={`Max ${SYMBOLS[currency]}/L`} value={costPLMax} onChange={(e) => setCostPLMax(e.target.value)}
+            style={{ padding: '5px 8px', width: 80, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text)', outline: 'none' }} />
+          {(costPLMin || costPLMax) && (
+            <button onClick={() => { setCostPLMin(''); setCostPLMax('') }}
+              style={{ padding: '4px 8px', borderRadius: 6, background: 'none', border: '1px solid var(--border)', fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', cursor: 'pointer' }}>
+              Clear
+            </button>
+          )}
         </div>
       )}
 
@@ -333,7 +430,7 @@ export default function VehicleFuel() {
                     key={entryId(entry)}
                     entry={entry}
                     kmGap={kmGapMap.get(entryId(entry))}
-                    onClick={() => navigate(`/vehicles/${vehicleId}/fuel/${entryId(entry)}`)}
+                    onClick={() => setModalEntryId(entryId(entry))}
                   />
                 ))}
               </div>
@@ -343,9 +440,18 @@ export default function VehicleFuel() {
                 key={entryId(entry)}
                 entry={entry}
                 kmGap={kmGapMap.get(entryId(entry))}
-                onClick={() => navigate(`/vehicles/${vehicleId}/fuel/${entryId(entry)}`)}
+                onClick={() => setModalEntryId(entryId(entry))}
               />
             ))
+      )}
+
+      {modalEntryId !== undefined && (
+        <FuelEntryModal
+          vehicleId={vehicleId!}
+          entryId={modalEntryId}
+          onClose={() => setModalEntryId(undefined)}
+          onSaved={() => { setRefreshKey((k) => k + 1); setModalEntryId(undefined) }}
+        />
       )}
     </div>
   )
