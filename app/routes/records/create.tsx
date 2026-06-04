@@ -5,8 +5,12 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import PageShell from '@/ui/layout/PageShell'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
 import ActionButton from '@/ui/ActionButton'
-import { createRecord, getRecordsByVehicle } from '@/features/records/api'
+import { createRecord, getRecordsByVehicle, createRecordComponent } from '@/features/records/api'
 import { getFuelByVehicle } from '@/features/fuel/api'
+import { getComponentsByVehicle, updateComponent, getComponentHealth } from '@/features/components/api'
+import RecordComponentRow from '@/ui/RecordComponentRow'
+import RecordComponentPicker from '@/ui/RecordComponentPicker'
+import { makeEmptyEntry, entryTotal, type SelectedComponent } from '@/features/records/componentEntry'
 import { getPrecedingMinMileage, isMileageValid, type EventEntry } from '@/lib/mileageBounds'
 import { getVehicles } from '@/features/vehicles/api'
 import { useTimelineStore } from '@/features/timeline/timelineStore'
@@ -15,17 +19,19 @@ import { ErrorBanner } from '@/ui/AsyncStates'
 import { backBtnStyle } from '@/styles/pageStyles'
 import VehicleLabel from '@/ui/VehicleLabel'
 import FormInput from '@/ui/FormInput'
-import type { Vehicle } from '@/lib/types'
+import type { Vehicle, VehicleComponent, ComponentHealth } from '@/lib/types'
 import { formatEnumLabel } from '@/lib/formatters'
 import { useCurrencyStore, SYMBOLS, toPLN } from '@/features/currency/currencyStore'
 
-const QUICK_TYPES = [
-  { label: 'Oil service',  serviceType: 'Engine',     name: 'Oil service' },
-  { label: 'Brake pads',  serviceType: 'Brakes',     name: 'Brake pads replacement' },
-  { label: 'Tyre change', serviceType: 'Tyres',      name: 'Tyre change' },
-  { label: 'Inspection',  serviceType: 'Inspection', name: 'Vehicle inspection' },
-  { label: 'Air filter',  serviceType: 'Engine',     name: 'Air filter replacement' },
-]
+const SERVICE_TYPES = [
+  'Inspection',
+  'RoutineService',
+  'Repair',
+  'TyreService',
+  'BodyAndPaint',
+  'Electrical',
+  'Other',
+] as const
 
 const fmtDate = (iso: string) => {
   if (!iso) return '—'
@@ -94,13 +100,17 @@ export default function CreateRecord() {
     invoiceNumber: '', invoiceImageUrl: '',
   })
   const [showMoreDetails, setShowMoreDetails] = useState(false)
+  const [step, setStep] = useState<1 | 2>(1)
   const [showQuickText, setShowQuickText] = useState(false)
   const [quickText, setQuickText] = useState('')
-  const [customMode, setCustomMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mileageUnknown, setMileageUnknown] = useState(false)
   const [allEvents, setAllEvents] = useState<EventEntry[]>([])
+  const [allComponents, setAllComponents] = useState<VehicleComponent[]>([])
+  const [newComponents, setNewComponents] = useState<SelectedComponent[]>([])
+  const [showPicker, setShowPicker] = useState(false)
+  const [healthMap, setHealthMap] = useState<Map<number, number>>(new Map())
 
   const targetVehicleId = vehicleIdFromUrl ?? form.vehicleId
 
@@ -145,12 +155,57 @@ export default function CreateRecord() {
     return () => { cancelled = true }
   }, [targetVehicleId])
 
+  useEffect(() => {
+    if (!targetVehicleId) return
+    let cancelled = false
+    Promise.allSettled([
+      getComponentsByVehicle(targetVehicleId),
+      getComponentHealth(targetVehicleId),
+    ]).then(([compRes, healthRes]) => {
+      if (cancelled) return
+      const map = new Map<number, number>()
+      if (healthRes.status === 'fulfilled' && Array.isArray(healthRes.value.data)) {
+        for (const h of healthRes.value.data as ComponentHealth[]) {
+          map.set(h.componentId, Math.min(h.kmLifetimePercent ?? 0, h.yearsLifetimePercent ?? 0))
+        }
+      }
+      setHealthMap(map)
+      if (compRes.status === 'fulfilled' && Array.isArray(compRes.value.data)) {
+        setAllComponents(compRes.value.data)
+      }
+    })
+    return () => { cancelled = true }
+  }, [targetVehicleId])
+
   const laborDays = useMemo(() => {
     if (!form.startedAt || !form.completedAt) return 0
     const diff = new Date(form.completedAt).getTime() - new Date(form.startedAt).getTime()
     const days = Math.round(diff / (1000 * 60 * 60 * 24))
     return days >= 0 ? days : 0
   }, [form.startedAt, form.completedAt])
+
+  const addedNewIds = useMemo(
+    () => new Set(newComponents.map((s) => s.comp.vehicleComponentId ?? s.comp.componentId)),
+    [newComponents]
+  )
+
+  const addComponent = (comp: VehicleComponent) => {
+    const id = comp.vehicleComponentId ?? comp.componentId
+    const pct = id != null ? healthMap.get(id) : undefined
+    setNewComponents((p) => [...p, { comp, entry: makeEmptyEntry(comp, pct ?? null) }])
+  }
+
+  const removeNew = (id: number | undefined) =>
+    setNewComponents((p) => p.filter((s) => (s.comp.vehicleComponentId ?? s.comp.componentId) !== id))
+
+  const updateNew = (id: number | undefined, field: string, value: string) =>
+    setNewComponents((p) =>
+      p.map((s) =>
+        (s.comp.vehicleComponentId ?? s.comp.componentId) === id
+          ? { ...s, entry: { ...s.entry, [field]: value } }
+          : s
+      )
+    )
 
   const minMileage = getPrecedingMinMileage(allEvents, form.startedAt || today)
   const mileageParsed = form.mileage !== '' ? parseInt(form.mileage, 10) : null
@@ -164,19 +219,19 @@ export default function CreateRecord() {
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [field]: e.target.value }))
 
-  const pickQuickType = (qt: typeof QUICK_TYPES[0]) => {
-    setCustomMode(false)
-    setForm((p) => ({ ...p, serviceType: qt.serviceType, serviceName: qt.name }))
-  }
-
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleNextStep = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!targetVehicleId) { setError('Please select a vehicle.'); return }
     if (!form.serviceType || !form.serviceName.trim()) {
-      setError('Please select a quick type or enter a service name.')
+      setError('Please select a service name and type.')
       return
     }
     if (!mileageUnknown && mileageError) { setError(mileageError); return }
+    setError(null)
+    setStep(2)
+  }
+
+  const handleSave = async () => {
     setError(null)
     setLoading(true)
     try {
@@ -198,8 +253,38 @@ export default function CreateRecord() {
         invoiceImageUrl: form.invoiceImageUrl || null,
       })
       const newRecordId = recordRes.data.maintenanceRecordId
+      for (const { comp, entry } of newComponents) {
+        if (!entry.changeType || entry.changeType === 'Skip') continue
+        const compTotal = entryTotal(entry)
+        const compId = comp.vehicleComponentId ?? comp.componentId
+        await createRecordComponent({
+          maintenanceRecordId: newRecordId,
+          componentId: compId,
+          componentChangeType: entry.changeType,
+          customerComplaint: entry.customerComplaint || null,
+          workDescription: entry.workDescription || null,
+          changedParts: entry.changedParts || null,
+          newState: entry.newState || 'Good',
+          expectedLifetimeKm: entry.changeType === 'Replaced' && entry.expectedLifetimeKm ? parseInt(entry.expectedLifetimeKm, 10) : null,
+          expectedLifetimeYears: entry.changeType === 'Replaced' && entry.expectedLifetimeYears ? parseInt(entry.expectedLifetimeYears, 10) : null,
+          laborCost: entry.laborCost ? parseFloat(entry.laborCost) : null,
+          partsCost: entry.partsCost ? parseFloat(entry.partsCost) : null,
+          otherCost: entry.otherCost ? parseFloat(entry.otherCost) : null,
+          totalCost: compTotal > 0 ? compTotal : null,
+        })
+        if (entry.changeType === 'Replaced') {
+          const patch: Record<string, unknown> = {}
+          if (entry.brand) patch.vehicleComponentBrand = entry.brand
+          if (entry.partNumber) patch.partNumber = entry.partNumber
+          if (entry.expectedLifetimeKm) patch.expectedLifetimeKm = parseInt(entry.expectedLifetimeKm, 10)
+          if (entry.expectedLifetimeYears) patch.expectedLifetimeYears = parseInt(entry.expectedLifetimeYears, 10)
+          if (entry.warrantyKm) patch.warrantyKm = parseInt(entry.warrantyKm, 10)
+          if (entry.warrantyDate) patch.warrantyDate = new Date(entry.warrantyDate).toISOString()
+          if (Object.keys(patch).length > 0) await updateComponent(compId!, patch)
+        }
+      }
       invalidateTimeline()
-      navigate(`/vehicles/${targetVehicleId}/records/${newRecordId}/components`)
+      navigate(`/vehicles/${targetVehicleId}/records/${newRecordId}`, { replace: true })
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
       setError(msg ?? 'Failed to save record.')
@@ -218,9 +303,89 @@ export default function CreateRecord() {
     cursor: 'pointer', transition: 'all 0.15s',
   })
 
-  const activeQT = QUICK_TYPES.find(
-    (qt) => qt.name === form.serviceName && qt.serviceType === form.serviceType
-  )
+  if (step === 2) {
+    return (
+      <PageShell>
+        <button onClick={() => { setError(null); setStep(1) }} style={backBtnStyle}>
+          ← Service details
+        </button>
+        {vehicleIdFromUrl && <VehicleLabel vehicleId={vehicleIdFromUrl} />}
+
+        <div style={{ padding: '4px 22px 4px' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Components affected</div>
+          {form.serviceName && (
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>
+              {form.serviceName}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '0 22px' }}>
+          {error && <ErrorBanner message={error} />}
+
+          {newComponents.map(({ comp, entry }) => (
+            <RecordComponentRow
+              key={comp.vehicleComponentId ?? comp.componentId}
+              comp={comp}
+              entry={entry}
+              defaultExpanded
+              onChange={(field, value) => updateNew(comp.vehicleComponentId ?? comp.componentId, field, value)}
+              onRemove={() => removeNew(comp.vehicleComponentId ?? comp.componentId)}
+            />
+          ))}
+
+          {newComponents.length === 0 && !showPicker && (
+            <div style={{
+              padding: '24px 0', textAlign: 'center' as const,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+              color: 'var(--text3)', lineHeight: 1.7,
+            }}>
+              No components linked yet.<br />
+              Link components to track what was serviced.
+            </div>
+          )}
+
+          {showPicker && (
+            <div style={{ marginBottom: 8 }}>
+              <RecordComponentPicker
+                allComponents={allComponents}
+                addedIds={addedNewIds}
+                onAdd={(comp) => { addComponent(comp); setShowPicker(false) }}
+                onClose={() => setShowPicker(false)}
+              />
+            </div>
+          )}
+
+          {!showPicker && (
+            <button
+              type="button"
+              onClick={() => setShowPicker(true)}
+              style={{
+                width: '100%', padding: '14px 16px',
+                background: 'transparent',
+                border: '1.5px dashed var(--border)',
+                borderRadius: 14,
+                display: 'flex', alignItems: 'center', gap: 10,
+                cursor: 'pointer', marginBottom: 16,
+              }}
+            >
+              <div style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: '1px solid var(--border)' }} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>
+                {newComponents.length === 0 ? 'Link a component' : 'Link another component'}
+              </span>
+            </button>
+          )}
+        </div>
+
+        <ActionButton type="button" onClick={handleSave} disabled={loading}>
+          {loading ? 'Saving...' : 'Save record'}
+        </ActionButton>
+        <div style={{ height: 8 }} />
+        <ActionButton variant="ghost" onClick={() => { setError(null); setStep(1) }}>← Back</ActionButton>
+        <div style={{ height: 24 }} />
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell>
@@ -233,7 +398,7 @@ export default function CreateRecord() {
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>New record</div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleNextStep}>
         {error && <ErrorBanner message={error} />}
 
         <div style={{ padding: '0 22px' }}>
@@ -325,50 +490,31 @@ export default function CreateRecord() {
             </div>
           )}
 
-          {/* Quick type */}
+          {/* Service type */}
           <div style={cardStyle}>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-              color: 'var(--text3)', textTransform: 'uppercase' as const, letterSpacing: '0.14em',
-              marginBottom: 10,
-            }}>
-              Quick type
-            </div>
+            <SectionHead title="Name and Type" />
+            {fieldLbl('Service name')}
+            <input
+              value={form.serviceName}
+              onChange={set('serviceName')}
+              placeholder="e.g. Oil change, Timing belt replacement..."
+              style={{ ...inputStyle, marginBottom: 12 }}
+              onFocus={onFocus}
+              onBlur={onBlur}
+            />
+            {fieldLbl('Service type')}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {QUICK_TYPES.map((qt) => (
-                <button key={qt.label} type="button" onClick={() => pickQuickType(qt)} style={chip(activeQT?.label === qt.label)}>
-                  {qt.label}
+              {SERVICE_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, serviceType: t }))}
+                  style={chip(form.serviceType === t)}
+                >
+                  {formatEnumLabel(t)}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomMode(true)
-                  setForm((p) => ({ ...p, serviceType: 'Other', serviceName: '' }))
-                }}
-                style={chip(customMode)}
-              >
-                + custom
-              </button>
             </div>
-            {customMode && (
-              <div style={{ marginTop: 10 }}>
-                <input
-                  value={form.serviceName}
-                  onChange={set('serviceName')}
-                  placeholder="e.g. Timing belt, AC service..."
-                  style={inputStyle}
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                  autoFocus
-                />
-              </div>
-            )}
-            {activeQT && (
-              <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--accent)' }}>
-                ✓ {form.serviceName} · {formatEnumLabel(form.serviceType)}
-              </div>
-            )}
           </div>
 
           {/* Vehicle selector */}
@@ -387,13 +533,13 @@ export default function CreateRecord() {
           <div style={cardStyle}>
             <SectionHead title="When & where" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Started')}
-                <input type="date" value={form.startedAt} onChange={set('startedAt')} required style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input type="date" value={form.startedAt} onChange={set('startedAt')} required style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Completed', true)}
-                <input type="date" value={form.completedAt} onChange={set('completedAt')} style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input type="date" value={form.completedAt} onChange={set('completedAt')} style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
             </div>
 
@@ -440,20 +586,26 @@ export default function CreateRecord() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Vendor / shop', true)}
-                <input value={form.vendor} onChange={set('vendor')} placeholder="AutoSerwis..." style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input value={form.vendor} onChange={set('vendor')} placeholder="AutoSerwis..." style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 {fieldLbl('Technician', true)}
-                <input value={form.technicianName} onChange={set('technicianName')} placeholder="Jan K..." style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                <input value={form.technicianName} onChange={set('technicianName')} placeholder="Jan K..." style={{ ...inputStyle, boxSizing: 'border-box', width: '100%' }} onFocus={onFocus} onBlur={onBlur} />
               </div>
             </div>
           </div>
 
-          {/* Cost */}
+          {/* Additional costs */}
           <div style={cardStyle}>
-            <SectionHead title="Cost" />
+            <SectionHead title="Additional costs" />
+            <div style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)',
+              marginBottom: 10, lineHeight: 1.6,
+            }}>
+              Diagnostics fee, labour, etc. Component costs are added in the next step.
+            </div>
             <div style={{
               display: 'flex', alignItems: 'stretch',
               background: 'var(--surface)', border: '1px solid var(--border)',
@@ -577,9 +729,7 @@ export default function CreateRecord() {
           )}
         </div>
 
-        <ActionButton type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Next: Components →'}
-        </ActionButton>
+        <ActionButton type="submit">Next: Components →</ActionButton>
         <div style={{ height: 8 }} />
         <ActionButton variant="ghost" onClick={goBack}>Cancel</ActionButton>
         <div style={{ height: 24 }} />
