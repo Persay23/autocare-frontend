@@ -1,6 +1,6 @@
-import { type ElementType } from 'react'
-import type { TimelineEvent } from '@/lib/types'
-import { TIMELINE_ICONS } from '@/lib/icons'
+﻿import { type ElementType } from 'react'
+import type { TimelineEvent } from '@/shared/types'
+import { TIMELINE_ICONS } from '@/shared/icons'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
 interface TimelineItemProps {

@@ -1,6 +1,6 @@
-import { SERVICE_ICONS } from '@/lib/icons'
-import { formatEnumLabel } from '@/lib/formatters'
-import type { MaintenanceRecord } from '@/lib/types'
+﻿import { SERVICE_ICONS } from '@/shared/icons'
+import { formatEnumLabel } from '@/shared/formatters'
+import type { MaintenanceRecord } from '@/shared/types'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 
 export default function RecordItem({ record, onClick }: { record: MaintenanceRecord; onClick: () => void }) {

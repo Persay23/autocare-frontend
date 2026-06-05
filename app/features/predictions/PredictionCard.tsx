@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import type { Prediction } from '@/lib/types'
+﻿import { useState, useEffect, useRef } from 'react'
+import type { Prediction } from '@/shared/types'
 
 interface PredictionCardProps {
   prediction: Prediction

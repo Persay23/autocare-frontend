@@ -71,7 +71,7 @@ export default function BarChart({ data = [], sectionLabel, title, subtitle }: B
       border: '1px solid var(--border)',
       borderRadius: 14,
       padding: 14,
-      margin: '0 16px 12px',
+      margin: '0 22px 12px',
     }}>
       {sectionLabel ? (
         <div style={{

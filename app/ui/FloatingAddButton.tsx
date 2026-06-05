@@ -2,7 +2,8 @@
 import { useNavigate } from 'react-router-dom'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
-import type { FabOption } from '@/lib/types'
+import type { FabOption } from '@/shared/types'
+import { useIsDesktop } from '@/ui/hooks/useIsDesktop'
 
 interface FloatingAddButtonProps {
   options?: FabOption[]
@@ -12,6 +13,9 @@ interface FloatingAddButtonProps {
 export default function FloatingAddButton({ options, onPress }: FloatingAddButtonProps) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const isDesktop = useIsDesktop()
+
+  if (isDesktop) return null
 
   const handleClick = () => {
     if (options?.length) {

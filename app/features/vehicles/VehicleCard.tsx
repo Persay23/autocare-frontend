@@ -1,19 +1,12 @@
-import { useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import StatusPill from '@/ui/StatusPill'
 import HealthBar from '@/ui/HealthBar'
-import { formatEnumLabel } from '@/lib/formatters'
-import { healthPctToState } from '@/lib/healthState'
-import type { Vehicle, ComponentHealth } from '@/lib/types'
+import { formatEnumLabel } from '@/shared/formatters'
+import { colorFromPct } from '@/shared/healthState'
+import type { Vehicle, ComponentHealth } from '@/shared/types'
 
 const STATE_ORDER = ['Critical', 'Repair', 'Normal', 'Good', 'Perfect', 'Unknown'] as const
 
-function healthColor(pct: number): string {
-  if (pct <= 15) return 'var(--red)'
-  if (pct <= 30) return 'var(--orange)'
-  if (pct <= 50) return 'var(--yellow)'
-  if (pct <= 74) return 'var(--green)'
-  return 'var(--accent4)'
-}
 
 export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; health: ComponentHealth[] | null }) {
   const navigate = useNavigate()
@@ -25,13 +18,8 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
       )
     : null
 
-  // Derive state per component from health % so pills are consistent with the bar
-  const derivedStates = (health ?? []).map((c) => {
-    const km = c.kmLifetimePercent ?? 0
-    const yr = c.yearsLifetimePercent ?? 0
-    if (km === 0 && yr === 0) return 'Unknown'
-    return healthPctToState(Math.min(km, yr))
-  })
+  // Use the state already computed by the backend health endpoint
+  const derivedStates = (health ?? []).map((c) => c.currentState ?? 'Unknown')
 
   const counts = derivedStates.reduce<Record<string, number>>((acc, s) => {
     acc[s] = (acc[s] ?? 0) + 1
@@ -75,7 +63,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
     <div
       onClick={() => navigate(`/vehicles/${vehicle.vehicleId}`)}
       style={{
-        margin: '0 16px 10px',
+        margin: '0 22px 10px',
         borderRadius: 14,
         padding: 14,
         cursor: 'pointer',
@@ -104,7 +92,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
               Fleet health
             </span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600, color: healthColor(overallHealth) }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600, color: colorFromPct(overallHealth) }}>
               {overallHealth}%
             </span>
           </div>

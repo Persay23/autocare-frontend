@@ -1,5 +1,5 @@
 ﻿import type { CSSProperties, ReactNode } from 'react'
-import type { ActionButtonVariant } from '@/lib/types'
+import type { ActionButtonVariant } from '@/shared/types'
 
 interface ActionButtonProps {
   children: ReactNode

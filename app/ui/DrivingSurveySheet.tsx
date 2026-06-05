@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+﻿import { useState, useRef, useEffect, type ReactNode } from 'react'
 import CloseIcon from '@mui/icons-material/Close'
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
@@ -25,7 +25,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import BuildIcon from '@mui/icons-material/Build'
-import type { DrivingProfile } from '@/lib/drivingProfile'
+import type { DrivingProfile } from '@/features/drivingProfile/utils'
 
 interface Props {
   initialProfile?: DrivingProfile | null

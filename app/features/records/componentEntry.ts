@@ -1,5 +1,4 @@
-import type { VehicleComponent } from '@/lib/types'
-import { healthPctToState } from '@/lib/healthState'
+﻿import type { VehicleComponent } from '@/shared/types'
 
 export const CHANGE_TYPES = ['Replaced', 'Repaired', 'Inspected', 'Adjusted', 'Cleaned', 'Other']
 
@@ -26,7 +25,7 @@ export interface SelectedComponent {
   entry: ComponentEntry
 }
 
-export function makeEmptyEntry(comp?: VehicleComponent, healthPct?: number | null): ComponentEntry {
+export function makeEmptyEntry(comp?: VehicleComponent, state?: string | null): ComponentEntry {
   return {
     changeType: '',
     workDescription: '',
@@ -34,7 +33,7 @@ export function makeEmptyEntry(comp?: VehicleComponent, healthPct?: number | nul
     laborCost: '',
     partsCost: '',
     otherCost: '',
-    newState: healthPct != null ? healthPctToState(healthPct) : 'Unknown',
+    newState: state ?? 'Unknown',
     customerComplaint: '',
     brand: comp?.vehicleComponentBrand ?? comp?.brand ?? '',
     partNumber: comp?.partNumber ?? '',
