@@ -4,9 +4,9 @@ import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { RouterProvider } from 'react-router-dom'
 import './styles/global.css'
-import { theme } from './theme'
+import { theme } from './styles/muiTheme'
 import { router } from './router.tsx'
-import { initTheme } from './lib/theme'
+import { initTheme } from './styles/theme'
 
 initTheme()
 

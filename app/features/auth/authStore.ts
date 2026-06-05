@@ -1,6 +1,6 @@
 ﻿import { create } from 'zustand'
 import { getMe, login as apiLogin, logout as apiLogout } from '@/features/auth/api'
-import type { User } from '@/lib/types'
+import type { User } from '@/shared/types'
 
 interface AuthState {
   user: User | null
@@ -32,4 +32,4 @@ function checkSession() {
 }
 
 checkSession()
-setInterval(checkSession, 300_000)
+setInterval(checkSession, 1_200_000)

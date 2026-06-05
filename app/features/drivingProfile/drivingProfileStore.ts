@@ -1,6 +1,6 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { getDrivingProfile, createDrivingProfile, updateDrivingProfile } from './api'
-import type { DrivingProfile } from '@/lib/drivingProfile'
+import type { DrivingProfile } from '@/features/drivingProfile/utils'
 
 interface DrivingProfileState {
   profile:   DrivingProfile | null

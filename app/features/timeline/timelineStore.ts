@@ -1,6 +1,6 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { getVehicleTimeline } from './api'
-import type { TimelineEvent, Vehicle } from '@/lib/types'
+import type { TimelineEvent, Vehicle } from '@/shared/types'
 
 const CACHE_TTL = 2 * 60 * 1000 // 2 minutes (timeline changes more often than expenses)
 

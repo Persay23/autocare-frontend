@@ -1,41 +1,22 @@
-import { type RouteObject } from 'react-router-dom'
+﻿import { type RouteObject } from 'react-router-dom'
 import ProtectedRoute from '@/ui/layout/ProtectedRoute'
 
-import AddVehicle      from './vehicles/create'
-import EditVehicle     from './vehicles/edit'
-import VehicleLayout   from './vehicles/layout'
-import VehicleOverview from './vehicles/overview'
+import AddVehicle      from '@/features/vehicles/VehicleCreatePage'
+import EditVehicle     from '@/features/vehicles/VehicleEditPage'
+import VehicleLayout   from '@/features/vehicles/VehicleLayout'
+import VehicleOverview from '@/features/vehicles/VehicleOverviewPage'
 
-import VehicleRecords from './records/list'
-import CreateRecord   from './records/create'
-import RecordDetail   from './records/detail'
-import EditRecord        from './records/edit'
-import RecordComponents from './records/components'
-
-import VehicleComponents from './components/list'
-import CreateComponent   from './components/create'
-import EditComponent     from './components/edit'
-
-import VehicleFuel   from './fuel/list'
-
-import VehiclePredictions from './predictions/list'
+import VehicleRecords     from '@/features/records/RecordListPage'
+import VehicleParts       from '@/features/components/ComponentListPage'
+import VehicleFuel        from '@/features/fuel/FuelListPage'
+import VehiclePredictions from '@/features/predictions/PredictionListPage'
 
 export const vehicleRoutes: RouteObject[] = [
   {
     element: <ProtectedRoute />,
     children: [
-      { path: '/vehicles/new', element: <AddVehicle /> },
+      { path: '/vehicles/new',             element: <AddVehicle /> },
       { path: '/vehicles/:vehicleId/edit', element: <EditVehicle /> },
-
-      // ── Records ───────────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/records/new',                       element: <CreateRecord /> },
-      { path: '/vehicles/:vehicleId/records/:recordId',                element: <RecordDetail /> },
-      { path: '/vehicles/:vehicleId/records/:recordId/edit',           element: <EditRecord /> },
-      { path: '/vehicles/:vehicleId/records/:recordId/components',     element: <RecordComponents /> },
-
-      // ── Components ────────────────────────────────────────────────────
-      { path: '/vehicles/:vehicleId/components/new',               element: <CreateComponent /> },
-      { path: '/vehicles/:vehicleId/components/:componentId/edit', element: <EditComponent /> },
 
       // ── Vehicle tabs (layout wraps tab content) ───────────────────────
       {
@@ -44,7 +25,7 @@ export const vehicleRoutes: RouteObject[] = [
         children: [
           { index: true,         element: <VehicleOverview /> },
           { path: 'records',     element: <VehicleRecords /> },
-          { path: 'components',  element: <VehicleComponents /> },
+          { path: 'components',  element: <VehicleParts /> },
           { path: 'fuel',        element: <VehicleFuel /> },
           { path: 'predictions', element: <VehiclePredictions /> },
         ],
