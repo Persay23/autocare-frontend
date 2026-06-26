@@ -1,5 +1,6 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { getMe, login as apiLogin, logout as apiLogout } from '@/features/auth/api'
+import { getToken, setToken, clearToken } from '@/features/auth/token'
 import type { User } from '@/shared/types'
 
 interface AuthState {
@@ -14,21 +15,37 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
 
   login: async (email: string, password: string): Promise<void> => {
-    await apiLogin(email, password)
-    const res = await getMe()
-    set({ user: res.data })
+    const res = await apiLogin(email, password)
+    // Store the token first so getMe() sends it as a bearer header.
+    setToken(res.data.token)
+    const me = await getMe()
+    set({ user: me.data })
   },
 
   logout: async (): Promise<void> => {
-    await apiLogout()
+    try {
+      await apiLogout()
+    } catch {
+      // Logout is stateless server-side; ignore failures and clear locally regardless.
+    }
+    clearToken()
     set({ user: null })
   },
 }))
 
 function checkSession() {
+  // No token → not logged in; skip the request (avoids a guaranteed 401 on first load).
+  if (!getToken()) {
+    useAuthStore.setState({ user: null, loading: false })
+    return
+  }
+
   getMe()
     .then((res) => useAuthStore.setState({ user: res.data as User, loading: false }))
-    .catch(() => useAuthStore.setState({ user: null, loading: false }))
+    .catch(() => {
+      clearToken()
+      useAuthStore.setState({ user: null, loading: false })
+    })
 }
 
 checkSession()

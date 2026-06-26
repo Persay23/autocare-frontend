@@ -1,12 +1,17 @@
 ﻿import api from '@/http/axios'
 import { User } from '@/shared/types'
 
+export interface LoginResponse {
+  token: string
+  expiresAt: string
+}
+
 // Check who is currently logged in (called on every app load)
 export const getMe = () => api.get<User>('/users/me')
 
-// Sends credentials, server sets the auth cookie in the response
+// Validates credentials and returns a JWT for the client to store and send as a bearer token.
 export const login = (email: string, password: string) =>
-  api.post('/auth/login', { email, password })
+  api.post<LoginResponse>('/auth/login', { email, password })
 
 export const logout = () => api.post('/auth/logout')
 

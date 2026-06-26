@@ -1,17 +1,26 @@
 import axios from 'axios'
+import { getToken, clearToken } from '@/features/auth/token'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'https://localhost:7235/api',
-  withCredentials: true, // sends the auth cookie with every request
 })
 
-// If the server returns 401, the user's session has expired.
-// Redirect them to login automatically.
+// Attach the JWT as a bearer header on every request (replaces cookie auth).
+api.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// A 401 means the token is missing/expired/invalid — drop it and send the user to login.
 api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     const status = (error as { response?: { status?: number } }).response?.status
     if (status === 401 && !window.location.pathname.includes('/login')) {
+      clearToken()
       window.location.href = '/login'
     }
     return Promise.reject(error)
