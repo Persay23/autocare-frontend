@@ -1,6 +1,6 @@
 # AutoCare — Frontend
 
-Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets users manage their vehicles, log service records and fuel refills, monitor component health, and view AI-powered service predictions — all from a phone-sized interface.
+Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets users manage their vehicles, log service records and fuel refills, track component health and general expenses, run AI-powered diagnostics, and receive personalised service predictions — all from a phone-sized interface.
 
 **Backend repo:** [VehicleMaintenance](https://github.com/Persay23/VehicleMaintenance)
 
@@ -13,7 +13,7 @@ Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets u
 | Framework | React 19 + TypeScript |
 | Build tool | Vite |
 | Routing | React Router v7 |
-| State | Zustand (per-feature stores) |
+| State | Zustand (per-feature stores with TTL cache) |
 | HTTP | Axios (shared instance, `withCredentials`) |
 | Icons | Material UI icons |
 | Fonts | Outfit + JetBrains Mono (Google Fonts) |
@@ -23,17 +23,24 @@ Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets u
 
 ## Features
 
-- Cookie-based auth — register, login, session check on every load
-- Vehicle list with health overview cards
+- Cookie-based auth — register, login, persistent session check on every load
+- Vehicle list (Car Park) with per-vehicle health overview cards
 - Per-vehicle tabs: Overview · Records · Components · Fuel · Predictions
-- Maintenance records with cost breakdown and component linking
-- Component health tracking — progress bar driven by mileage and age (worst-of-two rule)
-- Fuel refill log with cost-per-litre calculation
-- Service predictions with AI confidence score and status management (Active / Completed / Ignored)
-- Global Expenses page with 6-month bar chart, by-category and by-vehicle breakdown views, month-over-month comparison
-- Cross-vehicle timeline
-- Driving profile analysis and smart mileage suggestions
-- Fully dark-themed, capped at 430 px — designed and tested as a mobile web app
+- Maintenance records with full cost breakdown and per-component line items
+- Component health tracking — progress bar driven by mileage and age (worst-of-two rule), powered by the same math as the backend's `ComponentHealthCalculator`
+- Component management via a modal (detail, edit, create) with multi-step create wizard, service history, AI advice, warranty tracking, and next-service estimates
+- Fuel refill log with cost-per-litre calculation, grouped by month
+- AI-powered per-component service predictions with confidence score and status management (Active / Completed / Ignored)
+- AI symptom diagnosis — enter a symptom, receive structured likely causes, urgency rating, and recommended actions
+- Vehicle-level AI suggestions generated automatically after each service record
+- General Expenses page — recurring and one-off costs (insurance, tax, fines, etc.) managed inline via modal, with 6-month bar chart, by-category and by-vehicle breakdown, and month-over-month comparison
+- General expense create/edit/detail flow handled entirely by `ExpenseModal` (no separate pages)
+- Fuel entry create/edit/detail handled by `FuelEntryModal`
+- Driving profile survey — annual km, trip distances, highway ratio, driving style — used to improve AI estimates
+- Quick Setup Sheet — guided first-run onboarding for new vehicles
+- Multi-currency support with live conversion (PLN, EUR, USD, GBP)
+- Cross-vehicle event timeline
+- Fully dark-themed UI capped at 430 px — designed and tested as a mobile web app
 
 ---
 
@@ -41,29 +48,63 @@ Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets u
 
 ```
 app/
-├── features/          # Domain slices — each owns its API module + Zustand store
-│   ├── auth/
-│   ├── expenses/
+├── features/          # Domain slices — each owns its API module and Zustand store
+│   ├── ai/            # diagnoseVehicle, getDiagnosisHistory
+│   ├── auth/          # login, register, session refresh, authStore
+│   ├── components/    # CRUD + history API
+│   ├── currency/      # currencyStore — selected currency + PLN conversion helpers
+│   ├── drivingProfile/
+│   ├── expenses/      # expensesStore — cost summaries + general expenses
 │   ├── fuel/
-│   ├── predictions/
-│   ├── records/
-│   └── vehicles/
-├── lib/               # Shared utilities (types, enums, formatters, dedup, theme…)
-├── routes/            # One directory per feature, one file per page
-│   ├── auth/          # login, register
-│   ├── components/    # list, detail, create, edit
-│   ├── fuel/          # list, detail, create, edit
-│   ├── global/        # home, expenses, timeline, carpark, profile
-│   ├── predictions/   # list, detail
-│   ├── records/       # list, detail, create, edit
-│   └── vehicles/      # layout, overview, create
-├── styles/            # global.css (CSS custom properties) + pageStyles.ts
-└── ui/                # Reusable components
-    ├── layout/        # PageShell, BottomNav, TabBar, ProtectedRoute
+│   ├── notifications/ # notificationsStore
+│   ├── predictions/   # predictionsStore keyed by vehicleId
+│   ├── records/       # componentEntry.ts — form shape for record component rows
+│   ├── timeline/      # timelineStore
+│   ├── users/
+│   └── vehicles/      # vehiclesStore — vehicle list with fetch/invalidate
+├── lib/
+│   ├── healthState.ts         # single source of truth: colorFromPct, computeComponentMeasurements
+│   ├── componentTemplates.ts  # default lifetime / warranty values per component type
+│   ├── dedup.ts               # request deduplication for concurrent mounts
+│   ├── enums.ts               # shared enum value lists (EXPENSE_CATEGORIES, FUEL_TYPES, …)
+│   ├── formatters.ts          # formatEnumLabel, date helpers
+│   ├── icons.ts               # component type → MUI icon map
+│   ├── mileageBounds.ts       # mileage validation against sibling events
+│   └── types.ts               # all shared TypeScript interfaces
+├── routes/
+│   ├── auth/          # login.tsx, register.tsx
+│   ├── components/    # list.tsx (ComponentModal handles detail/edit/create)
+│   ├── fuel/          # list.tsx (FuelEntryModal handles detail/edit/create)
+│   ├── global/
+│   │   ├── expenses/  # list.tsx (ExpenseModal), detail.tsx, create.tsx, edit.tsx
+│   │   ├── home.tsx   # dashboard with alert summary, recent activity, quick actions
+│   │   ├── carpark.tsx
+│   │   ├── timeline.tsx
+│   │   └── profile.tsx
+│   ├── predictions/   # list.tsx
+│   ├── records/       # list.tsx, detail.tsx, create.tsx, edit.tsx, components.tsx
+│   └── vehicles/      # layout.tsx, overview.tsx, create.tsx, edit.tsx, diagnose.tsx
+├── styles/
+│   ├── global.css     # CSS custom properties (design tokens)
+│   └── pageStyles.ts  # shared inline style constants
+└── ui/
+    ├── layout/
+    │   ├── PageShell.tsx
+    │   ├── BottomNav.tsx
+    │   ├── TabBar.tsx
+    │   ├── SideNav.tsx
+    │   └── ProtectedRoute.tsx
+    ├── ComponentModal.tsx      # component detail / edit / create (multi-step wizard)
+    ├── ExpenseModal.tsx        # expense detail / edit / create
+    ├── FuelEntryModal.tsx      # fuel entry detail / edit / create
+    ├── PredictionModal.tsx     # prediction detail
+    ├── RecordModal.tsx
+    ├── DrivingSurveySheet.tsx  # driving profile bottom sheet
+    ├── QuickSetupSheet.tsx     # first-run onboarding sheet
+    ├── SmartFillButton.tsx     # AI-assisted field population
     ├── BarChart.tsx
-    ├── FormInput.tsx
-    ├── StatusPill.tsx
-    ├── TimelineItem.tsx
+    ├── HealthBar.tsx
+    ├── FloatingAddButton.tsx
     └── …
 ```
 
@@ -77,20 +118,33 @@ All styles are **inline JavaScript objects** — no CSS modules or Tailwind. Col
 |---|---|---|
 | `--bg` | `#07080f` | Page background |
 | `--surface` | `#0d0f1c` | Cards, nav |
-| `--surface2` | `#131628` | Input backgrounds |
+| `--surface2` | `#131628` | Input backgrounds, secondary cards |
+| `--surface3` | `#191c32` | Tertiary surfaces |
 | `--border` | `#252840` | Borders |
+| `--border2` | `#1c1f35` | Subtle dividers |
 | `--accent` | `#6c63ff` | Primary — buttons, active nav |
 | `--accent2` | `#4f8fff` | Secondary blue |
 | `--accent3` | `#a78bfa` | Soft purple — maintenance costs |
-| `--accent4` | `#38bdf8` | Cyan — fuel, general |
+| `--accent4` | `#38bdf8` | Cyan — fuel, recurring |
 | `--text` | `#e8eaf6` | Primary text |
 | `--text2` | `#7b80a8` | Secondary / meta |
+| `--text3` | `#4a4e6b` | Tertiary / labels |
 | `--green` | `#34d399` | Good / success |
 | `--red` | `#f87171` | Critical / danger |
-| `--orange` | `#fb923c` | Warning / fuel |
-| `--yellow` | `#fbbf24` | Monitor |
+| `--orange` | `#fb923c` | Repair / warning |
+| `--yellow` | `#fbbf24` | Normal |
 
-Component health thresholds: Critical ≤ 15% · Warning 16–30% · Monitor 31–50% · Good 51–74% · Perfect ≥ 75%
+### Component Health States
+
+| State | Remaining health | Color token |
+|---|---|---|
+| Perfect | > 75% | `--accent4` (cyan) |
+| Good | 51 – 75% | `--green` |
+| Normal | 31 – 50% | `--yellow` |
+| Repair | 16 – 30% | `--orange` |
+| Critical | ≤ 15% | `--red` |
+
+`app/lib/healthState.ts` is the single source of truth for these rules. `healthPctToState(pct)` maps a percentage to a state label; `colorFromPct(pct)` returns the CSS token; `computeComponentMeasurements(component)` derives `kmPercent`, `yearsPercent`, and `healthPct` from a component object. No other file re-implements this logic.
 
 ---
 
@@ -99,7 +153,7 @@ Component health thresholds: Critical ≤ 15% · Warning 16–30% · Monitor 31�
 ### Prerequisites
 
 - Node.js 20+
-- Backend running at `https://localhost:7235` (see backend repo)
+- Backend running at `https://localhost:7235` (see [backend repo](https://github.com/Persay23/VehicleMaintenance))
 
 ### Setup
 
@@ -133,23 +187,40 @@ npm run preview   # Serve the production build locally
 
 ## API Connection
 
-The app talks exclusively to the ASP.NET Core backend. A shared Axios instance (in `app/features/*/api.ts`) sets `baseURL` from `VITE_API_URL` and `withCredentials: true` on every request. A 401 response interceptor redirects to `/login` automatically.
-
-The backend must have CORS configured to allow `http://localhost:5173`.
+A shared Axios instance (`app/http/axios.ts`) sets `baseURL` from `VITE_API_URL` and `withCredentials: true` on every request. A 401 response interceptor redirects to `/login` automatically. Each domain's API functions live in `app/features/<domain>/api.ts` and are called only through their respective store or directly by modals.
 
 ---
 
 ## State Management
 
-Each domain feature owns a **Zustand store** that caches fetched data and exposes a `fetch` / `fetchAll` action. Components call the store action on mount — if the data is already cached the network call is skipped.
+Each domain feature owns a **Zustand store** with a TTL-based cache. Components call the store's `fetch` action on mount — if data was fetched within the TTL window, the network call is skipped.
 
-```
-vehiclesStore   — vehicle list + loading flag
-expensesStore   — monthly cost summaries keyed by vehicleId
-predictionsStore — predictions keyed by vehicleId
-```
+| Store | Contents |
+|---|---|
+| `vehiclesStore` | Vehicle list + selected vehicle; invalidated on any vehicle write |
+| `expensesStore` | Monthly cost summaries (keyed by vehicleId) + flat general expense list |
+| `predictionsStore` | Prediction lists keyed by vehicleId |
+| `timelineStore` | Cross-vehicle event timeline; invalidated on fuel/record writes |
+| `currencyStore` | Selected currency + `formatMoney` / `toPLN` helpers |
+| `drivingProfileStore` | Driving profile for the current user |
+| `notificationsStore` | In-app notification count and list |
+| `authStore` | Current user identity; polled every 60 s against `/api/users/me` |
 
-Auth state lives in a dedicated auth store (`features/auth/authStore.ts`) and is checked against the backend every 60 seconds.
+Request deduplication (`app/lib/dedup.ts`) prevents multiple concurrent fetches for the same key when several components mount simultaneously.
+
+---
+
+## Modal Pattern
+
+Detail/edit/create flows for components, fuel entries, and general expenses are handled by full-screen modals rather than separate routes. Each modal:
+
+- Accepts an ID (`null` = create mode) plus `onClose` and `onSaved` callbacks
+- Manages its own loading, saving, and error state
+- Opens over the current page with a `position: fixed` backdrop
+- Locks background scroll while open
+- On save: calls `invalidate()` on the relevant store so the list re-fetches
+
+This avoids navigation stack noise for actions that users perform frequently mid-session.
 
 ---
 
