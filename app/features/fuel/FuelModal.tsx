@@ -9,9 +9,11 @@ import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { useTimelineStore } from '@/features/timeline/timelineStore'
 import { FUEL_TYPES, FUEL_TYPES_FOR_FUEL_TYPE } from '@/shared/enums'
 import { formatEnumLabel } from '@/shared/formatters'
-import { getPrecedingMinMileage, isMileageValid, type EventEntry } from '@/features/components/mileageBounds'
-import { useCurrencyStore, formatMoney, RATES, SYMBOLS, toPLN } from '@/features/currency/currencyStore'
-import type { FuelEntry } from '@/shared/types'
+import FieldInput from '@/ui/FieldInput'
+import { getPrecedingMinMileage, isMileageValid, type EventEntry } from '@/shared/mileageBounds'
+import { useCurrencyStore, formatMoney, RATES, SYMBOLS, toPLN, convertCurrency, isSupportedCurrency } from '@/features/currency/currencyStore'
+import SmartFillButton from '@/features/ai/SmartFillButton'
+import type { FuelEntry, FuelParseResult } from '@/shared/types'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
@@ -64,44 +66,6 @@ function BigInput({ label, value, onChange, placeholder }: {
           color: 'var(--text)', fontSize: 20, fontWeight: 700, width: '100%', padding: 0,
         }}
       />
-    </div>
-  )
-}
-
-function FieldInput({ label, value, onChange, type = 'text', placeholder, error }: {
-  label: string
-  value: string | number
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  type?: string
-  placeholder?: string
-  error?: string
-}) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: 'var(--text3)',
-        textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5,
-      }}>
-        {label}
-      </div>
-      <input
-        type={type} value={value} onChange={onChange} placeholder={placeholder}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{
-          width: '100%', padding: '10px 12px', borderRadius: 10, boxSizing: 'border-box',
-          background: 'var(--surface2)', outline: 'none',
-          border: `1px solid ${error ? 'var(--red)' : focused ? 'var(--accent)' : 'var(--border)'}`,
-          boxShadow: focused ? '0 0 0 3px rgba(108,99,255,0.10)' : 'none',
-          color: 'var(--text)', fontSize: 13, fontFamily: 'inherit',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-      />
-      {error && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--red)', marginTop: 4 }}>
-          {error}
-        </div>
-      )}
     </div>
   )
 }
@@ -198,6 +162,30 @@ export default function FuelModal({ vehicleId, entryId, onClose, onSaved }: Prop
 
   const setField = (field: keyof FuelForm) =>
     (e: React.ChangeEvent<HTMLInputElement>) => setForm((p) => ({ ...p, [field]: e.target.value }))
+
+  // Pre-fill from a scanned fuel receipt; amounts converted to the display currency.
+  const handleFuelParsed = (d: FuelParseResult): string => {
+    const detectedRaw = d.currency?.trim().toUpperCase() ?? ''
+    const detected = isSupportedCurrency(detectedRaw) ? detectedRaw : null
+    const needsConvert = detected !== null && detected !== currency
+    const conv = (a: number) => needsConvert ? convertCurrency(a, detected!, currency) : a
+    const round2 = (n: number) => parseFloat(n.toFixed(2))
+    const station = [d.name, d.brand].filter(Boolean).join(' · ')
+
+    setForm((p) => ({
+      ...p,
+      fuelType:   d.fuelType && (FUEL_TYPES as readonly string[]).includes(d.fuelType) ? d.fuelType : p.fuelType,
+      refillDate: d.refillDate ? d.refillDate.split('T')[0] : p.refillDate,
+      amount:     d.amount != null ? String(d.amount) : p.amount,
+      cost:       d.cost != null ? String(round2(conv(d.cost))) : p.cost,
+      mileage:    d.mileage != null ? String(d.mileage) : p.mileage,
+      notes:      station || d.notes || p.notes,
+    }))
+
+    if (needsConvert) return `Amounts converted from ${detected}.`
+    if (detectedRaw && !detected) return `Couldn't recognise currency (${detectedRaw}).`
+    return ''
+  }
 
   const availableFuelTypes = vehicle
     ? (FUEL_TYPES_FOR_FUEL_TYPE[vehicle.fuelType] ?? FUEL_TYPES)
@@ -446,6 +434,13 @@ export default function FuelModal({ vehicleId, entryId, onClose, onSaved }: Prop
                   {submitError}
                 </div>
               )}
+
+              {/* Fuel receipt scan */}
+              <SmartFillButton<FuelParseResult>
+                target="fuel"
+                label="Scan fuel receipt to autofill"
+                onParsed={handleFuelParsed}
+              />
 
               {/* Vehicle selector — only shown when no vehicleId is provided (global create) */}
               {!vehicleId && (

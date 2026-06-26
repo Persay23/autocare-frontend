@@ -1,13 +1,13 @@
 ﻿import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import VehicleCard from '@/features/vehicles/VehicleCard'
 import GlobalFab from '@/ui/GlobalFab'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
+import { useVehicleModal } from '@/features/vehicles/vehicleModalStore'
 import { LoadingState, EmptyState } from '@/ui/AsyncStates'
 
 export default function CarPark() {
-  const navigate = useNavigate()
+  const openAddVehicle = useVehicleModal((s) => s.openCreate)
   const { vehicles, healthMap, loading, fetch: fetchVehicles } = useVehiclesStore()
 
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
@@ -41,7 +41,7 @@ export default function CarPark() {
           )}
         </div>
         <button
-          onClick={() => navigate('/vehicles/new')}
+          onClick={openAddVehicle}
           style={{
             display: 'inline-flex', alignItems: 'center',
             padding: '6px 14px', borderRadius: 10,

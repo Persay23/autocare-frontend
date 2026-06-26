@@ -67,9 +67,17 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
         borderRadius: 14,
         padding: 14,
         cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden',
         ...cardStyle,
       }}
     >
+      {/* Left accent strip */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: 3, background: 'var(--accent)',
+      }} />
+
       {/* Meta */}
       <div style={{
         fontFamily: "'JetBrains Mono', monospace",
@@ -96,7 +104,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
               {overallHealth}%
             </span>
           </div>
-          <HealthBar percent={overallHealth} />
+          <HealthBar percent={overallHealth} gradient />
         </div>
       )}
 

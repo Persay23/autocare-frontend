@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import type { ElementType } from 'react'
 import HomeIcon from '@mui/icons-material/Home'
 import BarChartIcon from '@mui/icons-material/BarChart'
@@ -10,13 +10,14 @@ import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import BuildIcon from '@mui/icons-material/Build'
 import AddCardIcon from '@mui/icons-material/AddCard'
-import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled'
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import HealingIcon from '@mui/icons-material/Healing'
 import logo from '@/assets/Logo.png'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { useDiagnoseModal } from '@/features/vehicles/diagnoseModalStore'
 import { useExpenseModal } from '@/features/expenses/expenseModalStore'
 import { useRecordModal } from '@/features/records/recordModalStore'
+import { useFuelModal } from '@/features/fuel/fuelModalStore'
 
 const NAV_ITEMS: { to: string; icon: ElementType; label: string }[] = [
   { to: '/',         icon: HomeIcon,         label: 'Home'     },
@@ -32,18 +33,27 @@ const SLOT_HEIGHT = ITEM_HEIGHT + ITEM_GAP
 
 export default function SideNav() {
   const location  = useLocation()
-  const navigate  = useNavigate()
   const vehicles  = useVehiclesStore((s) => s.vehicles)
   const openFor        = useDiagnoseModal((s) => s.openFor)
   const openPicker     = useDiagnoseModal((s) => s.open)
   const openExpense    = useExpenseModal((s) => s.open)
   const openRecord     = useRecordModal((s) => s.openCreate)
   const openRecordPick = useRecordModal((s) => s.open)
+  const openFuelCreate = useFuelModal((s) => s.openCreate)
 
   const quickAddOptions = [
     {
+      icon: LocalGasStationIcon,
+      label: 'Log Fuel',
+      action: () => {
+        if (vehicleIdFromPath) openFuelCreate(vehicleIdFromPath)
+        else if (vehicles.length === 1) openFuelCreate(String(vehicles[0].vehicleId))
+        else openFuelCreate(null)   // modal shows its vehicle selector
+      },
+    },
+    {
       icon: BuildIcon,
-      label: 'New Maintenance Record',
+      label: 'Service Record',
       action: () => {
         if (vehicleIdFromPath) openRecord(vehicleIdFromPath)
         else if (vehicles.length === 1) openRecord(String(vehicles[0].vehicleId))
@@ -52,13 +62,8 @@ export default function SideNav() {
     },
     {
       icon: AddCardIcon,
-      label: 'New General Expense',
+      label: 'General Expense',
       action: openExpense,
-    },
-    {
-      icon: DirectionsCarFilledIcon,
-      label: 'Add Vehicle',
-      action: () => navigate('/vehicles/new'),
     },
   ]
   const [quickAddOpen, setQuickAddOpen] = useState(false)

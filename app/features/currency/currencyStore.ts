@@ -42,3 +42,10 @@ export const formatMoney = (amountPLN: number, currency: Currency): string => {
 
 export const toPLN = (amount: number, currency: Currency): number =>
   currency === 'PLN' ? amount : amount / RATES[currency]
+
+export const isSupportedCurrency = (code: string): code is Currency =>
+  code in RATES
+
+// Converts an amount between two supported currencies via the PLN base rate.
+export const convertCurrency = (amount: number, from: Currency, to: Currency): number =>
+  (amount / RATES[from]) * RATES[to]

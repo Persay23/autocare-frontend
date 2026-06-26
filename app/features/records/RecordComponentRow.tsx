@@ -5,7 +5,7 @@ import { entryTotal } from '@/features/records/componentEntry'
 import { COMPONENT_ICONS } from '@/shared/icons'
 import { formatEnumLabel } from '@/shared/formatters'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
-import { useCurrencyStore, formatMoney, SYMBOLS } from '@/features/currency/currencyStore'
+import { useCurrencyStore, SYMBOLS } from '@/features/currency/currencyStore'
 
 const STATUS_COLORS: Record<string, string> = {
   Replaced:  'var(--green)',
@@ -214,7 +214,7 @@ export default function RecordComponentRow({
                     SUBTOTAL
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent3)' }}>
-                    {formatMoney(total, currency)}
+                    {total.toLocaleString(undefined, { maximumFractionDigits: 2 })} {SYMBOLS[currency]}
                   </span>
                 </div>
               )}

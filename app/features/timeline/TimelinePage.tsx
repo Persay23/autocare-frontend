@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import TimelineItem from '@/ui/TimelineItem'
@@ -12,6 +12,7 @@ import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore
 import { useExpenseModal } from '@/features/expenses/expenseModalStore'
 import { useRecordModal } from '@/features/records/recordModalStore'
 import { useFuelModal } from '@/features/fuel/fuelModalStore'
+import FilterPill from '@/ui/FilterPill'
 
 
 type Category = 'All' | 'Service' | 'Fuel' | 'Expense'
@@ -42,13 +43,9 @@ export default function Timeline() {
   const openRecord  = useRecordModal((s) => s.openFor)
   const openFuel    = useFuelModal((s) => s.openFor)
   const { currency } = useCurrencyStore()
-  const [selectedId, setSelectedId]       = useState<number | null>(null)
-  const [showFilter, setShowFilter]       = useState(false)
-  const [category, setCategory]           = useState<Category>('All')
-  const [showCategory, setShowCategory]   = useState(false)
-  const [searchQuery, setSearchQuery]     = useState('')
-  const filterRef   = useRef<HTMLDivElement>(null)
-  const categoryRef = useRef<HTMLDivElement>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [category, setCategory]     = useState<Category>('All')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
   const { eventsByVehicle, loading: timelineLoading, fetchAll }      = useTimelineStore()
@@ -56,14 +53,6 @@ export default function Timeline() {
 
   const loading = vehiclesLoading || timelineLoading || generalLoading
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (filterRef.current   && !filterRef.current.contains(e.target as Node))   setShowFilter(false)
-      if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) setShowCategory(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
@@ -169,98 +158,25 @@ export default function Timeline() {
 
       {/* Filter row: vehicle + category */}
       <div style={{ padding: '0 22px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {/* Vehicle filter */}
-        {vehicles.length > 0 && (
-          <div ref={filterRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowFilter((p) => !p); setShowCategory(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: (showFilter || selectedId !== null) ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showFilter || selectedId !== null) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showFilter || selectedId !== null) ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {selectedId === null
-                ? 'All cars'
-                : (() => { const v = vehicles.find((x) => x.vehicleId === selectedId); return v ? `${v.brand} ${v.model}` : 'All cars' })()
-              } ▾
-            </button>
-            {showFilter && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 200,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {[{ vehicleId: null, label: 'All cars' }, ...vehicles.map((v) => ({ vehicleId: v.vehicleId, label: `${v.brand} ${v.model}` }))].map(({ vehicleId, label }) => (
-                  <button
-                    key={vehicleId ?? 'all'}
-                    onClick={() => { setSelectedId(vehicleId as number | null); setShowFilter(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: selectedId === vehicleId ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: selectedId === vehicleId ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {selectedId === vehicleId && '✓ '}{label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+        {vehicles.length > 1 && (
+          <FilterPill
+            placeholder="All cars"
+            options={[
+              { key: 'all', label: 'All cars' },
+              ...vehicles.map((v) => ({ key: String(v.vehicleId), label: `${v.brand} ${v.model}` })),
+            ]}
+            value={selectedId === null ? 'all' : String(selectedId)}
+            onChange={(k) => setSelectedId(k === 'all' ? null : parseInt(k, 10))}
+            minWidth={200}
+          />
         )}
-
-        {/* Category filter */}
-        <div ref={categoryRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setShowCategory((p) => !p); setShowFilter(false) }}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-              border: (showCategory || category !== 'All') ? '1px solid var(--accent)' : '1px solid var(--border)',
-              background: (showCategory || category !== 'All') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-              color: (showCategory || category !== 'All') ? 'var(--accent)' : 'var(--text3)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {category} ▾
-          </button>
-          {showCategory && (
-            <div style={{
-              position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 140,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-            }}>
-              {CATEGORY_LABELS.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => { setCategory(cat); setShowCategory(false) }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '11px 14px', background: 'none', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                    color: category === cat ? 'var(--accent)' : 'var(--text2)',
-                    fontWeight: category === cat ? 600 : 400,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {category === cat && '✓ '}{cat}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <FilterPill
+          placeholder="All"
+          options={CATEGORY_LABELS.map((cat) => ({ key: cat, label: cat }))}
+          value={category}
+          onChange={(k) => setCategory(k as Category)}
+          minWidth={140}
+        />
       </div>
 
       {/* Search */}

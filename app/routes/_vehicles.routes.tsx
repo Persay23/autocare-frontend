@@ -1,8 +1,6 @@
 ﻿import { type RouteObject } from 'react-router-dom'
 import ProtectedRoute from '@/ui/layout/ProtectedRoute'
 
-import AddVehicle      from '@/features/vehicles/VehicleCreatePage'
-import EditVehicle     from '@/features/vehicles/VehicleEditPage'
 import VehicleLayout   from '@/features/vehicles/VehicleLayout'
 import VehicleOverview from '@/features/vehicles/VehicleOverviewPage'
 
@@ -15,9 +13,6 @@ export const vehicleRoutes: RouteObject[] = [
   {
     element: <ProtectedRoute />,
     children: [
-      { path: '/vehicles/new',             element: <AddVehicle /> },
-      { path: '/vehicles/:vehicleId/edit', element: <EditVehicle /> },
-
       // ── Vehicle tabs (layout wraps tab content) ───────────────────────
       {
         path: '/vehicles/:vehicleId/*',

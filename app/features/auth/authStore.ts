@@ -16,7 +16,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string): Promise<void> => {
     await apiLogin(email, password)
     const res = await getMe()
-    set({ user: res.data as User })
+    set({ user: res.data })
   },
 
   logout: async (): Promise<void> => {

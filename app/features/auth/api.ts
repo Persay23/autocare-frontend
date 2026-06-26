@@ -1,7 +1,8 @@
 ﻿import api from '@/http/axios'
+import { User } from '@/shared/types'
 
 // Check who is currently logged in (called on every app load)
-export const getMe = () => api.get('/users/me')
+export const getMe = () => api.get<User>('/users/me')
 
 // Sends credentials, server sets the auth cookie in the response
 export const login = (email: string, password: string) =>

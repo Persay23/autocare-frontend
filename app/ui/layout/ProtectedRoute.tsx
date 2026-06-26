@@ -10,12 +10,13 @@ import DiagnoseModal from '@/features/vehicles/DiagnoseModal'
 import GlobalExpenseModal from '@/features/expenses/GlobalExpenseModal'
 import GlobalRecordModal from '@/features/records/GlobalRecordModal'
 import GlobalFuelModal from '@/features/fuel/GlobalFuelModal'
+import GlobalVehicleModal from '@/features/vehicles/GlobalVehicleModal'
 import { useDiagnoseModal } from '@/features/vehicles/diagnoseModalStore'
 import { useExpenseModal } from '@/features/expenses/expenseModalStore'
 import { useRecordModal } from '@/features/records/recordModalStore'
 import { useFuelModal } from '@/features/fuel/fuelModalStore'
-import { markSkipped, hasSkipped, clearSkipped } from '@/features/drivingProfile/utils'
-import type { DrivingProfile } from '@/features/drivingProfile/utils'
+import { useVehicleModal } from '@/features/vehicles/vehicleModalStore'
+import { markSkipped, hasSkipped, clearSkipped, type DrivingProfile } from '@/shared/drivingProfile'
 import { useDrivingProfileStore } from '@/features/drivingProfile/drivingProfileStore'
 
 export default function ProtectedRoute() {
@@ -30,6 +31,7 @@ export default function ProtectedRoute() {
   const expenseOpen  = useExpenseModal((s) => s.isOpen)
   const recordOpen   = useRecordModal((s) => s.isOpen)
   const fuelOpen     = useFuelModal((s) => s.isOpen)
+  const vehicleOpen  = useVehicleModal((s) => s.isOpen)
 
   useEffect(() => {
     if (!user || hasSkipped(user.id)) return
@@ -108,6 +110,7 @@ export default function ProtectedRoute() {
       {expenseOpen  && <GlobalExpenseModal />}
       {recordOpen   && <GlobalRecordModal />}
       {fuelOpen     && <GlobalFuelModal />}
+      {vehicleOpen  && <GlobalVehicleModal />}
       {showSurvey && (
         <DrivingSurveySheet
           onComplete={handleComplete}

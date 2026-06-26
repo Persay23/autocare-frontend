@@ -18,6 +18,7 @@ import { colorFromPct } from '@/shared/healthState'
 import { useIsDesktop } from '@/ui/hooks/useIsDesktop'
 import { useRecordModal } from '@/features/records/recordModalStore'
 import { useFuelModal } from '@/features/fuel/fuelModalStore'
+import { useVehicleModal } from '@/features/vehicles/vehicleModalStore'
 
 const ATTENTION_STYLE: Record<string, { cardBg: string; cardBorder: string; labelColor: string }> = {
   Critical: { cardBg: 'rgba(248,113,113,0.07)', cardBorder: 'rgba(248,113,113,0.22)', labelColor: 'var(--red)'    },
@@ -42,6 +43,7 @@ export default function Home() {
   const isDesktop   = useIsDesktop()
   const openRecord  = useRecordModal((s) => s.openFor)
   const openFuel    = useFuelModal((s) => s.openFor)
+  const openAddVehicle = useVehicleModal((s) => s.openCreate)
   const { currency } = useCurrencyStore()
 
   const { vehicles, healthMap, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
@@ -442,7 +444,7 @@ export default function Home() {
             Add your first vehicle to get started
           </div>
           <button
-            onClick={() => navigate('/vehicles/new')}
+            onClick={openAddVehicle}
             style={{
               padding: '10px 20px', borderRadius: 10,
               background: 'var(--accent)', color: '#fff',

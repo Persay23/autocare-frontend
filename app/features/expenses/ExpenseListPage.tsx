@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import PageShell from '@/ui/layout/PageShell'
 import BarChart from '@/ui/BarChart'
 import GlobalFab from '@/ui/GlobalFab'
@@ -7,6 +7,8 @@ import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { useExpensesStore } from '@/features/expenses/expenseStore'
 import { formatEnumLabel } from '@/shared/formatters'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
+import FilterPill from '@/ui/FilterPill'
+import type { FilterOption } from '@/shared/filters'
 
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -61,25 +63,17 @@ export default function ExpenseListPage() {
   const [modalExpenseId, setModalExpenseId] = useState<number | null | undefined>(undefined)
   const [selectedId, setSelectedId]         = useState<number | null>(null)
   const [showOneOff, setShowOneOff]         = useState(false)
-  const [catFilter,  setCatFilter]          = useState('all')
-  const [dateFrom,   setDateFrom]           = useState('')
-  const [dateTo,     setDateTo]             = useState('')
-  const [priceMin,   setPriceMin]           = useState('')
-  const [priceMax,   setPriceMax]           = useState('')
-  const [showFilters, setShowFilters]       = useState(false)
-  const filtersRef = useRef<HTMLDivElement>(null)
+  const [catFilter,  setCatFilter]  = useState<string[]>([])
+  const [dateFrom,   setDateFrom]   = useState('')
+  const [dateTo,     setDateTo]     = useState('')
+  const [priceMin,   setPriceMin]   = useState('')
+  const [priceMax,   setPriceMax]   = useState('')
+  const [showDateRange, setShowDateRange] = useState(false)
   const { vehicles, loading: vehiclesLoading, fetch: fetchVehicles } = useVehiclesStore()
   const { summaries, generalExpenses, loading: summariesLoading, generalLoading, fetchAll, fetchGeneralExpenses, invalidate } = useExpensesStore()
 
   const loading = vehiclesLoading || summariesLoading || generalLoading
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setShowFilters(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
 
@@ -103,22 +97,21 @@ export default function ExpenseListPage() {
     ? generalExpenses.filter((e) => e.vehicleId === selectedId)
     : generalExpenses
 
-  const catFilterOptions = useMemo(() => {
+  const catFilterOptions: FilterOption[] = useMemo(() => {
     const counts: Record<string, number> = {}
     activeGeneralExpenses.forEach((e) => {
       const cat = e.expenseCategory ?? 'Other'
       counts[cat] = (counts[cat] ?? 0) + 1
     })
-    const opts = Object.entries(counts)
+    return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .map(([cat, count]) => ({ key: cat, label: `${formatEnumLabel(cat)} (${count})` }))
-    return [{ key: 'all', label: `All (${activeGeneralExpenses.length})` }, ...opts]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generalExpenses, selectedId])
 
   const filteredGeneralExpenses = useMemo(() => {
     let result = activeGeneralExpenses
-    if (catFilter !== 'all') result = result.filter((e) => e.expenseCategory === catFilter)
+    if (catFilter.length > 0) result = result.filter((e) => catFilter.includes(e.expenseCategory ?? 'Other'))
     if (dateFrom)  result = result.filter((e) => e.date.slice(0, 10) >= dateFrom)
     if (dateTo)    result = result.filter((e) => e.date.slice(0, 10) <= dateTo)
     if (priceMin)  result = result.filter((e) => (e.cost ?? 0) >= parseFloat(priceMin))
@@ -518,165 +511,107 @@ export default function ExpenseListPage() {
         </>
       )}
 
-      {/* General expenses — unified filter chip */}
-      {!loading && activeGeneralExpenses.length > 0 && (() => {
-        const activeCount = [
-          selectedId !== null,
-          catFilter !== 'all',
-          !!priceMin || !!priceMax,
-          !!dateFrom || !!dateTo,
-        ].filter(Boolean).length
+      {/* General expenses — filter bar */}
+      {!loading && activeGeneralExpenses.length > 0 && (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', padding: '8px 22px 4px' }}>
+            {/* Vehicle — single-select, only shown for multi-vehicle users */}
+            {vehicles.length > 1 && (
+              <FilterPill
+                placeholder="All cars"
+                options={[
+                  { key: 'all', label: 'All cars' },
+                  ...vehicles.map((v) => ({ key: String(v.vehicleId), label: `${v.brand} ${v.model}` })),
+                ]}
+                value={selectedId === null ? 'all' : String(selectedId)}
+                onChange={(k) => setSelectedId(k === 'all' ? null : parseInt(k, 10))}
+                minWidth={180}
+              />
+            )}
 
-        const inputStyle: React.CSSProperties = {
-          flex: 1, minWidth: 80,
-          padding: '5px 8px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10, color: 'var(--text)', outline: 'none',
-        }
+            {/* Category — multi-select */}
+            {catFilterOptions.length > 0 && (
+              <FilterPill
+                placeholder="Category"
+                options={catFilterOptions}
+                selected={catFilter}
+                onChangeMulti={setCatFilter}
+                multi noun="categories"
+                minWidth={200}
+              />
+            )}
 
-        const sectionLabel: React.CSSProperties = {
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 9, fontWeight: 700, color: 'var(--text3)',
-          textTransform: 'uppercase', letterSpacing: '0.1em',
-          marginBottom: 8,
-        }
-
-        return (
-          <div ref={filtersRef} style={{ position: 'relative', padding: '8px 22px 4px' }}>
+            {/* Date range toggle pill */}
             <button
-              onClick={() => setShowFilters((p) => !p)}
+              onClick={() => setShowDateRange((p) => !p)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: (showFilters || activeCount > 0) ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showFilters || activeCount > 0) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showFilters || activeCount > 0) ? 'var(--accent)' : 'var(--text3)',
+                whiteSpace: 'nowrap',
+                border: (showDateRange || dateFrom || dateTo) ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: (showDateRange || dateFrom || dateTo) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
+                color: (showDateRange || dateFrom || dateTo) ? 'var(--accent)' : 'var(--text3)',
                 transition: 'all 0.15s',
               }}
             >
-              Filters{activeCount > 0 ? ` (${activeCount})` : ''} ▾
+              {dateFrom || dateTo ? `${dateFrom || '…'} – ${dateTo || '…'}` : 'Date'} ▾
             </button>
 
-            {showFilters && (
-              <div style={{
-                position: 'absolute', left: 22, top: 'calc(100% + 4px)', zIndex: 200,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: 14, width: 260,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-                display: 'flex', flexDirection: 'column', gap: 14,
-              }}>
-
-                {/* Vehicle */}
-                {vehicles.length > 0 && (
-                  <div>
-                    <div style={sectionLabel}>Vehicle</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      {[{ vehicleId: null, label: 'All vehicles' }, ...vehicles.map((v) => ({ vehicleId: v.vehicleId, label: `${v.brand} ${v.model}` }))].map(({ vehicleId: vid, label }) => (
-                        <button
-                          key={vid ?? 'all'}
-                          onClick={() => setSelectedId(vid as number | null)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '7px 8px', borderRadius: 6,
-                            background: selectedId === vid ? 'rgba(108,99,255,0.12)' : 'none',
-                            border: 'none', cursor: 'pointer', textAlign: 'left',
-                            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                            color: selectedId === vid ? 'var(--accent)' : 'var(--text2)',
-                            fontWeight: selectedId === vid ? 600 : 400,
-                          }}
-                        >
-                          {selectedId === vid && <span style={{ width: 8, fontSize: 9 }}>✓</span>}
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Category */}
-                <div>
-                  <div style={sectionLabel}>Category</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {catFilterOptions.map(({ key, label }) => (
-                      <button
-                        key={key}
-                        onClick={() => setCatFilter(key)}
-                        style={{
-                          padding: '4px 9px', borderRadius: 999, cursor: 'pointer',
-                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                          border: catFilter === key ? '1px solid var(--accent)' : '1px solid var(--border)',
-                          background: catFilter === key ? 'rgba(108,99,255,0.12)' : 'var(--surface3)',
-                          color: catFilter === key ? 'var(--accent)' : 'var(--text3)',
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Price range */}
-                <div>
-                  <div style={sectionLabel}>Price range</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      type="number" placeholder="Min" value={priceMin}
-                      onChange={(e) => setPriceMin(e.target.value)}
-                      style={inputStyle}
-                    />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>–</span>
-                    <input
-                      type="number" placeholder="Max" value={priceMax}
-                      onChange={(e) => setPriceMax(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-
-                {/* Date range */}
-                <div>
-                  <div style={sectionLabel}>Date range</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                      style={inputStyle}
-                    />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>–</span>
-                    <input
-                      type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-
-                {/* Clear all */}
-                {activeCount > 0 && (
-                  <button
-                    onClick={() => {
-                      setSelectedId(null); setCatFilter('all')
-                      setPriceMin(''); setPriceMax('')
-                      setDateFrom(''); setDateTo('')
-                    }}
-                    style={{
-                      padding: '7px 0', borderRadius: 8,
-                      background: 'none', border: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 9, fontWeight: 600, color: 'var(--text3)',
-                      cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em',
-                    }}
-                  >
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Price range toggle pill */}
+            <button
+              onClick={() => setShowDateRange(false)}
+              onMouseDown={(e) => e.preventDefault()}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
+                border: (priceMin || priceMax) ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: (priceMin || priceMax) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
+                color: (priceMin || priceMax) ? 'var(--accent)' : 'var(--text3)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {priceMin || priceMax ? `${priceMin || '0'} – ${priceMax || '∞'}` : 'Price'} ▾
+            </button>
           </div>
-        )
-      })()}
+
+          {/* Date range inline inputs */}
+          {showDateRange && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0 22px 8px', flexWrap: 'wrap' }}>
+              <input
+                type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                style={{
+                  padding: '5px 8px', background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                  color: 'var(--text)', outline: 'none',
+                }}
+              />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text3)' }}>–</span>
+              <input
+                type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                style={{
+                  padding: '5px 8px', background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                  color: 'var(--text)', outline: 'none',
+                }}
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo('') }}
+                  style={{
+                    padding: '4px 8px', borderRadius: 6, background: 'none',
+                    border: '1px solid var(--border)', fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 9, color: 'var(--text3)', cursor: 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {/* General expenses list */}
       {!loading && activeGeneralExpenses.length > 0 && (() => {

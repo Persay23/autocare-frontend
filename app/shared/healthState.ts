@@ -32,6 +32,21 @@ export function colorFromPct(pct: number): string {
   return stateColor(healthPctToState(pct))
 }
 
+/** Maps a remaining-life percentage to a CSS gradient for bar fills — the
+ *  "life gradient": starts at green and sweeps through the intermediate
+ *  state colors down to the current state color. */
+export function gradientFromPct(pct: number): string {
+  const stops: Record<string, string[]> = {
+    Perfect:  ['var(--green)', 'var(--accent4)'],
+    Good:     ['var(--green)', 'var(--green)'],
+    Normal:   ['var(--green)', 'var(--yellow)'],
+    Repair:   ['var(--green)', 'var(--yellow)', 'var(--orange)'],
+    Critical: ['var(--green)', 'var(--yellow)', 'var(--orange)', 'var(--red)'],
+  }
+  const colors = stops[healthPctToState(pct)] ?? ['var(--text2)', 'var(--text2)']
+  return `linear-gradient(90deg, ${colors.join(', ')})`
+}
+
 // ─── Frontend health computation ──────────────────────────────────────────────
 
 /** All derived measurements for a raw VehicleComponent (CRUD DTO).

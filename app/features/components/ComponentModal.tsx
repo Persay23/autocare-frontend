@@ -11,7 +11,8 @@ import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore
 import { COMPONENT_ICONS } from '@/shared/icons'
 import { formatEnumLabel } from '@/shared/formatters'
 import { healthPctToState, colorFromPct, computeComponentMeasurements } from '@/shared/healthState'
-import type { VehicleComponent } from '@/shared/types'
+import SmartFillButton from '@/features/ai/SmartFillButton'
+import type { VehicleComponent, ComponentParseResult } from '@/shared/types'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
@@ -291,6 +292,26 @@ export default function ComponentModal({ componentId, vehicleId, onClose, onSave
       expectedLifetimeKm:    p.expectedLifetimeKm    || String(d.lifetimeKm),
       expectedLifetimeYears: p.expectedLifetimeYears || String(d.lifetimeYears),
     }))
+  }
+
+  // Pre-fill the create form from a scanned parts invoice / box label.
+  const handleComponentParsed = (d: ComponentParseResult): string => {
+    const known = [...PRIMARY_TYPES, ...EXTRA_TYPES]
+    if (d.componentType && EXTRA_TYPES.includes(d.componentType)) setShowMoreTypes(true)
+    setCreateForm((p) => ({
+      ...p,
+      componentType:         d.componentType && known.includes(d.componentType) ? d.componentType : p.componentType,
+      vehicleComponentName:  d.vehicleComponentName ?? p.vehicleComponentName,
+      vehicleComponentBrand: d.vehicleComponentBrand ?? p.vehicleComponentBrand,
+      partNumber:            d.partNumber ?? p.partNumber,
+      installationDate:      d.installationDate ? d.installationDate.split('T')[0] : p.installationDate,
+      expectedLifetimeKm:    d.expectedLifetimeKm != null ? String(d.expectedLifetimeKm) : p.expectedLifetimeKm,
+      expectedLifetimeYears: d.expectedLifetimeYears != null ? String(d.expectedLifetimeYears) : p.expectedLifetimeYears,
+      warrantyKm:            d.warrantyKm != null ? String(d.warrantyKm) : p.warrantyKm,
+      warrantyDate:          d.warrantyDate ? d.warrantyDate.split('T')[0] : p.warrantyDate,
+      notes:                 d.notes ?? p.notes,
+    }))
+    return ''
   }
 
   const advanceCreate = () => {
@@ -903,6 +924,13 @@ export default function ComponentModal({ componentId, vehicleId, onClose, onSave
               {/* Step 1 — Identity */}
               {createStep === 1 && (
                 <>
+                  {/* Parts label / invoice scan */}
+                  <SmartFillButton<ComponentParseResult>
+                    target="component"
+                    label="Scan part label to autofill"
+                    onParsed={handleComponentParsed}
+                  />
+
                   <FieldInput label="Component name" value={createForm.vehicleComponentName} onChange={setCreateField('vehicleComponentName')} placeholder="Front brake pads, Oil filter…" />
                   <div style={{ marginBottom: 12 }}>
                     <div style={{

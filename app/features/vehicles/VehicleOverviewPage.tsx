@@ -6,19 +6,19 @@ import ActionButton from '@/ui/ActionButton'
 import { getVehicleCostSummary, getGeneralExpensesByVehicle } from '@/features/expenses/api'
 import { getRecordsByVehicle } from '@/features/records/api'
 import { getPredictionsByVehicle } from '@/features/predictions/api'
-import { deleteVehicle } from '@/features/vehicles/api'
+import { deleteVehicle, exportVehicle, type ExportFormat } from '@/features/vehicles/api'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { dedupFetch } from '@/shared/dedup'
 import { createComponent } from '@/features/components/api'
 import { PRESET_GROUPS } from '@/features/components/componentPresets'
 import { COMPONENT_DEFAULTS } from '@/features/components/componentTemplates'
 import { formatEnumLabel } from '@/shared/formatters'
-import { toConfidencePercent } from '@/features/predictions/confidenceUtils'
 
 import type { ComponentHealth, GeneralExpense, MonthlyCostSummary, Prediction } from '@/shared/types'
 import type { VehicleLayoutContext } from './layout'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 import { useDiagnoseModal } from '@/features/vehicles/diagnoseModalStore'
+import VehicleModal from '@/features/vehicles/VehicleModal'
 
 interface BarChartPoint { label: string; maintenance: number; fuel: number; general?: number }
 
@@ -122,6 +122,8 @@ export default function VehicleOverviewPage() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [exporting, setExporting] = useState<ExportFormat | null>(null)
 
   const lastFetchedVehicleId = useRef('')
 
@@ -264,6 +266,15 @@ export default function VehicleOverviewPage() {
       navigate('/carpark')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleExport = async (format: ExportFormat) => {
+    setExporting(format)
+    try {
+      await exportVehicle(vehicle.vehicleId, format)
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -786,8 +797,39 @@ export default function VehicleOverviewPage() {
       )}
 
 
+      {/* Export history */}
+      <div style={{ padding: '0 22px 12px' }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)',
+          textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8,
+        }}>
+          Export history
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {([
+            { fmt: 'pdf' as const, label: '📄 PDF' },
+            { fmt: 'md' as const,  label: '📝 Markdown' },
+          ]).map(({ fmt, label }) => (
+            <button
+              key={fmt}
+              onClick={() => handleExport(fmt)}
+              disabled={exporting !== null}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10,
+                background: 'var(--surface2)', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: 13, fontWeight: 600,
+                cursor: exporting !== null ? 'not-allowed' : 'pointer',
+                opacity: exporting !== null && exporting !== fmt ? 0.5 : 1,
+              }}
+            >
+              {exporting === fmt ? 'Preparing…' : label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Edit / Delete vehicle */}
-      <ActionButton variant="ghost" onClick={() => navigate(`/vehicles/${vehicleId}/edit`)}>
+      <ActionButton variant="ghost" onClick={() => setEditOpen(true)}>
         Edit Vehicle
       </ActionButton>
       <div style={{ height: 8 }} />
@@ -851,6 +893,15 @@ export default function VehicleOverviewPage() {
           </div>
         )}
       </div>
+
+      {/* Edit vehicle modal — local instance so the layout refreshes on save */}
+      {editOpen && (
+        <VehicleModal
+          vehicleId={vehicle.vehicleId}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); onComponentsCreated() }}
+        />
+      )}
     </div>
   )
 }

@@ -8,10 +8,11 @@ import {
 import { useExpensesStore } from '@/features/expenses/expenseStore'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { dedupFetch } from '@/shared/dedup'
-import { useCurrencyStore, formatMoney, SYMBOLS, RATES, toPLN } from '@/features/currency/currencyStore'
+import { useCurrencyStore, formatMoney, SYMBOLS, RATES, toPLN, convertCurrency, isSupportedCurrency } from '@/features/currency/currencyStore'
 import { EXPENSE_CATEGORIES, RECURRENCE_INTERVALS } from '@/shared/enums'
 import { EXPENSE_CATEGORY_ICONS } from '@/shared/icons'
-import type { GeneralExpense } from '@/shared/types'
+import SmartFillButton from '@/features/ai/SmartFillButton'
+import type { GeneralExpense, ExpenseParseResult } from '@/shared/types'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
@@ -176,6 +177,29 @@ export default function ExpenseModal({ expenseId, onClose, onSaved }: Props) {
   const set = (field: keyof ExpenseForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((p) => ({ ...p, [field]: e.target.value }))
+
+  // Pre-fill from a scanned expense receipt; amount converted to the display currency.
+  const handleExpenseParsed = (d: ExpenseParseResult): string => {
+    const detectedRaw = d.currency?.trim().toUpperCase() ?? ''
+    const detected = isSupportedCurrency(detectedRaw) ? detectedRaw : null
+    const needsConvert = detected !== null && detected !== currency
+    const conv = (a: number) => needsConvert ? convertCurrency(a, detected!, currency) : a
+    const round2 = (n: number) => parseFloat(n.toFixed(2))
+
+    setForm((p) => ({
+      ...p,
+      expenseCategory: d.expenseCategory && (EXPENSE_CATEGORIES as readonly string[]).includes(d.expenseCategory)
+        ? d.expenseCategory : p.expenseCategory,
+      cost:        d.cost != null ? String(round2(conv(d.cost))) : p.cost,
+      date:        d.date ? d.date.split('T')[0] : p.date,
+      description: d.description ?? p.description,
+      notes:       d.notes ?? p.notes,
+    }))
+
+    if (needsConvert) return `Amounts converted from ${detected}.`
+    if (detectedRaw && !detected) return `Couldn't recognise currency (${detectedRaw}).`
+    return ''
+  }
 
   const applyPreset = (preset: FreqPreset) => {
     setFreqPreset(preset)
@@ -535,6 +559,13 @@ export default function ExpenseModal({ expenseId, onClose, onSaved }: Props) {
                   {submitError}
                 </div>
               )}
+
+              {/* Expense receipt scan */}
+              <SmartFillButton<ExpenseParseResult>
+                target="expense"
+                label="Scan receipt to autofill"
+                onParsed={handleExpenseParsed}
+              />
 
               {/* Amount — tap-to-enter hero */}
               <div

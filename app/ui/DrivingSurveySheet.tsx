@@ -25,7 +25,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import BuildIcon from '@mui/icons-material/Build'
-import type { DrivingProfile } from '@/features/drivingProfile/utils'
+import type { DrivingProfile } from '@/shared/drivingProfile'
 
 interface Props {
   initialProfile?: DrivingProfile | null

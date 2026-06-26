@@ -168,6 +168,73 @@ export interface AiDiagnosis {
   createdAt: string
 }
 
+export interface ReceiptPart {
+  name?: string | null
+  componentType?: string | null
+  changeType?: string | null
+  partsCost?: number | null
+  workDescription?: string | null
+}
+
+export interface ReceiptParseResult {
+  serviceName?: string | null
+  serviceDate?: string | null
+  serviceType?: string | null
+  mileage?: number | null
+  cost?: number | null
+  currency?: string | null
+  vendorOrShop?: string | null
+  technicianName?: string | null
+  invoiceNumber?: string | null
+  description?: string | null
+  parts?: ReceiptPart[] | null
+}
+
+export interface FuelParseResult {
+  name?: string | null
+  brand?: string | null
+  fuelType?: string | null
+  refillDate?: string | null
+  amount?: number | null
+  cost?: number | null
+  currency?: string | null
+  mileage?: number | null
+  notes?: string | null
+}
+
+export interface ComponentParseResult {
+  componentType?: string | null
+  vehicleComponentName?: string | null
+  vehicleComponentBrand?: string | null
+  partNumber?: string | null
+  installationDate?: string | null
+  expectedLifetimeKm?: number | null
+  expectedLifetimeYears?: number | null
+  warrantyKm?: number | null
+  warrantyDate?: string | null
+  notes?: string | null
+}
+
+export interface ExpenseParseResult {
+  expenseCategory?: string | null
+  cost?: number | null
+  currency?: string | null
+  date?: string | null
+  description?: string | null
+  notes?: string | null
+}
+
+export interface VehicleParseResult {
+  brand?: string | null
+  model?: string | null
+  yearOfProduction?: number | null
+  vehicleType?: string | null
+  transmissionType?: string | null
+  engineType?: string | null
+  fuelType?: string | null
+  mileage?: number | null
+}
+
 export interface TimelineEvent {
   date: string
   type: string

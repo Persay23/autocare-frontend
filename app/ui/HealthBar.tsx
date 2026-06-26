@@ -1,11 +1,12 @@
-﻿import { colorFromPct } from '@/shared/healthState'
+import { colorFromPct, gradientFromPct } from '@/shared/healthState'
 
 interface HealthBarProps {
   percent?: number | null
   height?: number
+  gradient?: boolean
 }
 
-export default function HealthBar({ percent, height = 4 }: HealthBarProps) {
+export default function HealthBar({ percent, height = 4, gradient = false }: HealthBarProps) {
   const clamped = Math.min(100, Math.max(0, percent ?? 0))
 
   return (
@@ -19,7 +20,7 @@ export default function HealthBar({ percent, height = 4 }: HealthBarProps) {
       <div style={{
         height: '100%',
         width: `${clamped}%`,
-        background: colorFromPct(clamped),
+        background: gradient ? gradientFromPct(clamped) : colorFromPct(clamped),
         borderRadius: 99,
         transition: 'width 0.3s ease',
       }} />

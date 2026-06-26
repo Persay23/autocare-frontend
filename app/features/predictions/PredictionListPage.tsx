@@ -1,10 +1,12 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { getPredictionsByVehicle, updatePrediction, triggerAiSuggest } from '@/features/predictions/api'
 import { dedupFetch } from '@/shared/dedup'
 import { LoadingState, ErrorState } from '@/ui/AsyncStates'
 import PredictionCard from '@/features/predictions/PredictionCard'
 import PredictionModal from '@/features/predictions/PredictionModal'
+import FilterPill from '@/ui/FilterPill'
+import type { FilterOption } from '@/shared/filters'
 import type { Prediction } from '@/shared/types'
 
 const URGENCY_ORDER: Prediction['urgency'][] = ['Immediate', 'Soon', 'Scheduled', 'Suggested']
@@ -22,13 +24,9 @@ export default function PredictionListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing]         = useState(false)
-  const [urgencyFilter, setUrgencyFilter]   = useState<string>('all')
+  const [urgencyFilter, setUrgencyFilter]   = useState<string[]>([])
   const [statusFilter,  setStatusFilter]    = useState<string>('all')
-  const [showUrgencyDrop, setShowUrgencyDrop] = useState(false)
-  const [showStatusDrop,  setShowStatusDrop]  = useState(false)
   const [modalId, setModalId] = useState<number | null>(null)
-  const urgencyRef = useRef<HTMLDivElement>(null)
-  const statusRef  = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -41,14 +39,6 @@ export default function PredictionListPage() {
 
   useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (urgencyRef.current && !urgencyRef.current.contains(e.target as Node)) setShowUrgencyDrop(false)
-      if (statusRef.current  && !statusRef.current.contains(e.target as Node))  setShowStatusDrop(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   const handleIgnore = async (p: Prediction) => {
     try {
@@ -85,9 +75,9 @@ export default function PredictionListPage() {
   const active = predictions.filter((p) => p.status === 'Active')
   const done   = predictions.filter((p) => p.status === 'Completed' || p.status === 'Ignored')
 
-  const visibleActive = urgencyFilter === 'all'
+  const visibleActive = urgencyFilter.length === 0
     ? active
-    : active.filter((p) => p.urgency === urgencyFilter)
+    : active.filter((p) => urgencyFilter.includes(p.urgency))
 
   const visibleDone = statusFilter === 'Active'  ? [] :
     statusFilter === 'Completed' ? done.filter((p) => p.status === 'Completed') :
@@ -150,90 +140,31 @@ export default function PredictionListPage() {
       {/* Filter bar */}
       {!loading && !error && predictions.length > 0 && (
         <div style={{ display: 'flex', gap: 6, padding: '0 22px 10px' }}>
-
-          {/* Urgency dropdown */}
-          <div ref={urgencyRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowUrgencyDrop((p) => !p); setShowStatusDrop(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: (showUrgencyDrop || urgencyFilter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showUrgencyDrop || urgencyFilter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showUrgencyDrop || urgencyFilter !== 'all') ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {urgencyFilter === 'all' ? 'Urgency' : urgencyFilter} ▾
-            </button>
-            {showUrgencyDrop && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 160,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {(['all', 'Immediate', 'Soon', 'Scheduled', 'Suggested'] as const).map((u) => (
-                  <button key={u}
-                    onClick={() => { setUrgencyFilter(u); setShowUrgencyDrop(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: urgencyFilter === u ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: urgencyFilter === u ? 600 : 400, cursor: 'pointer',
-                    }}
-                  >
-                    {urgencyFilter === u && '✓ '}{u === 'all' ? 'All urgency' : u}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Status dropdown */}
-          <div ref={statusRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowStatusDrop((p) => !p); setShowUrgencyDrop(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: (showStatusDrop || statusFilter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showStatusDrop || statusFilter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showStatusDrop || statusFilter !== 'all') ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {statusFilter === 'all' ? 'Status' : statusFilter} ▾
-            </button>
-            {showStatusDrop && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 160,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {(['all', 'Active', 'Completed', 'Ignored'] as const).map((s) => (
-                  <button key={s}
-                    onClick={() => { setStatusFilter(s); setShowStatusDrop(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: statusFilter === s ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: statusFilter === s ? 600 : 400, cursor: 'pointer',
-                    }}
-                  >
-                    {statusFilter === s && '✓ '}{s === 'all' ? 'All status' : s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <FilterPill
+            placeholder="Urgency"
+            options={([
+              { key: 'Immediate', color: 'var(--red)'    },
+              { key: 'Soon',      color: 'var(--orange)' },
+              { key: 'Scheduled', color: 'var(--yellow)' },
+              { key: 'Suggested', color: 'var(--text3)'  },
+            ] as const).map((o) => ({ key: o.key, label: o.key, color: o.color }))}
+            selected={urgencyFilter}
+            onChangeMulti={setUrgencyFilter}
+            multi noun="levels"
+            minWidth={160}
+          />
+          <FilterPill
+            placeholder="Status"
+            options={([
+              { key: 'all',       label: 'All status' },
+              { key: 'Active',    label: 'Active'     },
+              { key: 'Completed', label: 'Completed'  },
+              { key: 'Ignored',   label: 'Ignored'    },
+            ] as FilterOption[])}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            minWidth={160}
+          />
         </div>
       )}
 

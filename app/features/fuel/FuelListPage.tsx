@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { getFuelByVehicle } from '@/features/fuel/api'
 import { dedupFetch } from '@/shared/dedup'
@@ -7,6 +7,8 @@ import { formatEnumLabel } from '@/shared/formatters'
 import { useCurrencyStore, formatMoney, RATES, SYMBOLS } from '@/features/currency/currencyStore'
 import type { FuelEntry } from '@/shared/types'
 import FuelModal from '@/features/fuel/FuelModal'
+import FilterPill from '@/ui/FilterPill'
+import type { FilterOption } from '@/shared/filters'
 
 type SortKey = 'newest' | 'oldest' | 'cost-desc' | 'litres-desc' | 'price-per-l'
 
@@ -28,15 +30,9 @@ export default function FuelListPage() {
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [modalEntryId, setModalEntryId] = useState<number | null | undefined>(undefined)
-  const [sort, setSort] = useState<SortKey>('newest')
-  const [filter, setFilter] = useState<string>('all')
-  const [showSort, setShowSort] = useState(false)
-  const [showFilter, setShowFilter] = useState(false)
-  const [showStationFilter, setShowStationFilter] = useState(false)
+  const [sort, setSort]               = useState<SortKey>('newest')
+  const [typeFilter, setTypeFilter]   = useState<string[]>([])
   const [stationFilter, setStationFilter] = useState('all')
-  const sortRef    = useRef<HTMLDivElement>(null)
-  const filterRef  = useRef<HTMLDivElement>(null)
-  const stationRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -47,23 +43,12 @@ export default function FuelListPage() {
     return () => { cancelled = true }
   }, [vehicleId, refreshKey])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (sortRef.current    && !sortRef.current.contains(e.target as Node))    setShowSort(false)
-      if (filterRef.current  && !filterRef.current.contains(e.target as Node))  setShowFilter(false)
-      if (stationRef.current && !stationRef.current.contains(e.target as Node)) setShowStationFilter(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const filterOptions = useMemo(() => {
+  const typeFilterOptions: FilterOption[] = useMemo(() => {
     const counts: Record<string, number> = {}
     entries.forEach((e) => { const t = e.fuelType ?? e.liquidType ?? 'Other'; counts[t] = (counts[t] ?? 0) + 1 })
-    const typeOpts = Object.entries(counts).map(([type, count]) => ({
+    return Object.entries(counts).map(([type, count]) => ({
       key: type, label: `${formatEnumLabel(type)} (${count})`,
     }))
-    return [{ key: 'all', label: `All (${entries.length})` }, ...typeOpts]
   }, [entries])
 
   const stations = useMemo(() => {
@@ -72,10 +57,12 @@ export default function FuelListPage() {
   }, [entries])
 
   const filteredEntries = useMemo(() => {
-    let result = filter === 'all' ? entries : entries.filter((e) => (e.fuelType ?? e.liquidType ?? 'Other') === filter)
+    let result = typeFilter.length === 0
+      ? entries
+      : entries.filter((e) => typeFilter.includes(e.fuelType ?? e.liquidType ?? 'Other'))
     if (stationFilter !== 'all') result = result.filter((e) => e.notes === stationFilter)
     return result
-  }, [entries, filter, stationFilter])
+  }, [entries, typeFilter, stationFilter])
 
   const sortedEntries = useMemo(() => {
     return filteredEntries.slice().sort((a, b) => {
@@ -132,8 +119,6 @@ export default function FuelListPage() {
     return groups
   }, [sortedEntries, sort])
 
-  const currentFilterLabel = filterOptions.find((o) => o.key === filter)?.label ?? 'All'
-  const currentSortLabel   = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'
 
   return (
     <div>
@@ -225,145 +210,32 @@ export default function FuelListPage() {
         </div>
       )}
 
-      {/* Filter + Sort dropdowns */}
+      {/* Filter + Sort bar */}
       {!loading && !error && entries.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '0 22px 12px' }}>
-
-          {/* Filter */}
-          <div ref={filterRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowFilter((p) => !p); setShowSort(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                whiteSpace: 'nowrap',
-                border: (showFilter || filter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showFilter || filter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showFilter || filter !== 'all') ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {currentFilterLabel} ▾
-            </button>
-            {showFilter && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 180,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {filterOptions.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => { setFilter(key); setShowFilter(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: filter === key ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: filter === key ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {filter === key && '✓ '}{label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sort */}
-          <div ref={sortRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowSort((p) => !p); setShowFilter(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                whiteSpace: 'nowrap',
-                border: showSort ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: showSort ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: showSort ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {currentSortLabel} ▾
-            </button>
-            {showSort && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 200,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {SORT_OPTIONS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => { setSort(key); setShowSort(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: sort === key ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: sort === key ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {sort === key && '✓ '}{label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Station filter pill — only when 2+ unique station names exist */}
+          <FilterPill
+            placeholder="Type"
+            options={typeFilterOptions}
+            selected={typeFilter}
+            onChangeMulti={setTypeFilter}
+            multi noun="types"
+          />
           {stations.length >= 2 && (
-            <div ref={stationRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => { setShowStationFilter((p) => !p) }}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  border: (showStationFilter || stationFilter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
-                  background: (showStationFilter || stationFilter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                  color: (showStationFilter || stationFilter !== 'all') ? 'var(--accent)' : 'var(--text3)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {stationFilter === 'all' ? 'Station' : stationFilter} ▾
-              </button>
-              {showStationFilter && (
-                <div style={{
-                  position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                  background: 'var(--surface2)', border: '1px solid var(--border)',
-                  borderRadius: 10, overflow: 'hidden', minWidth: 160,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-                }}>
-                  {[{ key: 'all', label: 'All stations' }, ...stations.map((s) => ({ key: s, label: s }))].map(({ key, label }) => (
-                    <button key={key}
-                      onClick={() => { setStationFilter(key); setShowStationFilter(false) }}
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        padding: '11px 14px', background: 'none', border: 'none',
-                        borderBottom: '1px solid var(--border)',
-                        fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                        color: stationFilter === key ? 'var(--accent)' : 'var(--text2)',
-                        fontWeight: stationFilter === key ? 600 : 400, cursor: 'pointer',
-                      }}
-                    >
-                      {stationFilter === key && '✓ '}{label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <FilterPill
+              placeholder="Station"
+              options={[{ key: 'all', label: 'All stations' }, ...stations.map((s) => ({ key: s, label: s }))]}
+              value={stationFilter}
+              onChange={setStationFilter}
+              minWidth={160}
+            />
           )}
-
+          <FilterPill
+            placeholder={SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'}
+            options={SORT_OPTIONS}
+            value={sort}
+            onChange={(k) => setSort(k as SortKey)}
+            isSort minWidth={200}
+          />
         </div>
       )}
 
@@ -371,7 +243,7 @@ export default function FuelListPage() {
       {error && <ErrorState message={error} />}
       {!loading && !error && entries.length === 0 && <EmptyState icon="⛽" message="No fuel entries yet" />}
       {!loading && !error && sortedEntries.length === 0 && entries.length > 0 && (
-        <EmptyState icon="⛽" message={`No ${formatEnumLabel(filter)} entries`} />
+        <EmptyState icon="⛽" message="No entries match the current filter" />
       )}
 
       {/* Entry list — grouped by month for date sorts, flat for other sorts */}

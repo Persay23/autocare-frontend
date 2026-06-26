@@ -1,5 +1,5 @@
 ﻿import api from '@/http/axios'
-import type { DrivingProfile } from '@/features/drivingProfile/utils'
+import type { DrivingProfile } from '@/shared/drivingProfile'
 
 export const getDrivingProfile = (userId: string) =>
   api.get<DrivingProfile>(`/userdrivingprofile/${userId}`)

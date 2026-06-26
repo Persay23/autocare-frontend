@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import RecordItem from '@/features/records/RecordItem'
 import { getRecordsByVehicle } from '@/features/records/api'
@@ -7,6 +7,8 @@ import RecordModal from '@/features/records/RecordModal'
 import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
 import { formatEnumLabel } from '@/shared/formatters'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
+import FilterPill from '@/ui/FilterPill'
+import type { FilterOption } from '@/shared/filters'
 import type { MaintenanceRecord } from '@/shared/types'
 
 type SortKey = 'newest' | 'oldest' | 'cost-desc' | 'cost-asc'
@@ -24,12 +26,8 @@ export default function RecordListPage() {
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sort, setSort] = useState<SortKey>('newest')
-  const [filter, setFilter] = useState<string>('all')
-  const [showSort, setShowSort] = useState(false)
-  const [showFilter, setShowFilter] = useState(false)
-  const sortRef = useRef<HTMLDivElement>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
+  const [sort, setSort]             = useState<SortKey>('newest')
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
 
   // undefined = closed, null = create mode, number = detail/edit mode
   const [modalRecordId, setModalRecordId] = useState<number | null | undefined>(undefined)
@@ -45,28 +43,18 @@ export default function RecordListPage() {
     return () => { cancelled = true }
   }, [vehicleId, fetchKey])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false)
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilter(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const filterOptions = useMemo(() => {
+  const typeFilterOptions: FilterOption[] = useMemo(() => {
     const counts: Record<string, number> = {}
     records.forEach((r) => { const t = r.serviceType ?? 'Other'; counts[t] = (counts[t] ?? 0) + 1 })
-    const typeOpts = Object.entries(counts).map(([type, count]) => ({
+    return Object.entries(counts).map(([type, count]) => ({
       key: type, label: `${formatEnumLabel(type)} (${count})`,
     }))
-    return [{ key: 'all', label: `All (${records.length})` }, ...typeOpts]
   }, [records])
 
   const filteredRecords = useMemo(() => {
-    if (filter === 'all') return records
-    return records.filter((r) => (r.serviceType ?? 'Other') === filter)
-  }, [records, filter])
+    if (typeFilter.length === 0) return records
+    return records.filter((r) => typeFilter.includes(r.serviceType ?? 'Other'))
+  }, [records, typeFilter])
 
   const sortedRecords = useMemo(() => {
     return filteredRecords.slice().sort((a, b) => {
@@ -111,8 +99,6 @@ export default function RecordListPage() {
     return groups
   }, [sortedRecords, sort])
 
-  const currentFilterLabel = filterOptions.find((o) => o.key === filter)?.label ?? 'All'
-  const currentSortLabel   = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'
 
   return (
     <div>
@@ -182,98 +168,23 @@ export default function RecordListPage() {
         </div>
       )}
 
-      {/* Filter + Sort dropdowns */}
+      {/* Filter + Sort bar */}
       {!loading && !error && records.length > 0 && (
         <div style={{ display: 'flex', gap: 6, padding: '0 22px 12px' }}>
-
-          {/* Filter */}
-          <div ref={filterRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowFilter((p) => !p); setShowSort(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: (showFilter || filter !== 'all') ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: (showFilter || filter !== 'all') ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: (showFilter || filter !== 'all') ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {currentFilterLabel} ▾
-            </button>
-            {showFilter && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 180,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {filterOptions.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => { setFilter(key); setShowFilter(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: filter === key ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: filter === key ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {filter === key && '✓ '}{label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sort */}
-          <div ref={sortRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowSort((p) => !p); setShowFilter(false) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-                border: showSort ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: showSort ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-                color: showSort ? 'var(--accent)' : 'var(--text3)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {currentSortLabel} ▾
-            </button>
-            {showSort && (
-              <div style={{
-                position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-                background: 'var(--surface2)', border: '1px solid var(--border)',
-                borderRadius: 10, overflow: 'hidden', minWidth: 180,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              }}>
-                {SORT_OPTIONS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => { setSort(key); setShowSort(false) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: sort === key ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: sort === key ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {sort === key && '✓ '}{label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
+          <FilterPill
+            placeholder="Type"
+            options={typeFilterOptions}
+            selected={typeFilter}
+            onChangeMulti={setTypeFilter}
+            multi noun="types"
+          />
+          <FilterPill
+            placeholder={SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'}
+            options={SORT_OPTIONS}
+            value={sort}
+            onChange={(k) => setSort(k as SortKey)}
+            isSort
+          />
         </div>
       )}
 
@@ -281,7 +192,7 @@ export default function RecordListPage() {
       {error && <ErrorState message={error} />}
       {!loading && !error && records.length === 0 && <EmptyState icon="🔧" message="No maintenance records yet" />}
       {!loading && !error && sortedRecords.length === 0 && records.length > 0 && (
-        <EmptyState icon="🔧" message={`No ${formatEnumLabel(filter)} records`} />
+        <EmptyState icon="🔧" message="No records match the current filter" />
       )}
 
       {/* Records list — grouped by month for date sorts, flat for cost sorts */}

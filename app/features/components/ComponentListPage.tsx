@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import ComponentModal from '@/features/components/ComponentModal'
 import HealthBar from '@/ui/HealthBar'
@@ -8,22 +8,13 @@ import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
 import { COMPONENT_ICONS } from '@/shared/icons'
 import { formatEnumLabel } from '@/shared/formatters'
 import QuickSetupSheet from '@/ui/QuickSetupSheet'
+import FilterPill from '@/ui/FilterPill'
+import type { FilterOption } from '@/shared/filters'
 
 import type { ComponentHealth } from '@/shared/types'
 import { colorFromPct } from '@/shared/healthState'
 
-type SortKey  = 'health-asc' | 'health-desc' | 'name-asc' | 'name-desc'
-type FilterKey = 'critical' | 'repair' | 'warning' | 'normal' | 'good' | 'perfect' | 'unknown'
-
-const FILTER_COLORS: Record<FilterKey, string> = {
-  critical: 'var(--red)',
-  repair:   'var(--orange)',
-  warning:  'var(--yellow)',
-  normal:   'var(--text2)',
-  good:     'var(--green)',
-  perfect:  'var(--accent4)',
-  unknown:  'var(--text3)',
-}
+type SortKey = 'health-asc' | 'health-desc' | 'name-asc' | 'name-desc'
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'health-asc',  label: '↑ Health' },
@@ -53,15 +44,9 @@ export default function ComponentListPage() {
   const [showQuickSetup, setShowQuickSetup] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [modalComponentId, setModalComponentId] = useState<number | null | undefined>(undefined)
-  const [sort, setSort] = useState<SortKey>('health-asc')
-  const [filters, setFilters] = useState<FilterKey[]>([])
-  const [showSort, setShowSort] = useState(false)
-  const [showFilter, setShowFilter] = useState(false)
+  const [sort, setSort]           = useState<SortKey>('health-asc')
+  const [filters, setFilters]     = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<string[]>([])
-  const [showTypeFilter, setShowTypeFilter] = useState(false)
-  const sortRef   = useRef<HTMLDivElement>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
-  const typeRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -71,16 +56,6 @@ export default function ComponentListPage() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [vehicleId, refreshKey])
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSort(false)
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilter(false)
-      if (typeRef.current && !typeRef.current.contains(e.target as Node)) setShowTypeFilter(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   const existingNames = new Set(
     health.map((h) => h.vehicleComponentName).filter((n): n is string => Boolean(n))
@@ -130,35 +105,25 @@ export default function ComponentListPage() {
   const unknownGroup   = sortedHealth.filter((c) => getDerivedState(c) === 'Unknown')
   const showGroups = filters.length === 0
 
-  const filterOptions: { key: FilterKey; label: string; count: number }[] = ([
-    { key: 'critical' as FilterKey, count: criticalCount },
-    { key: 'repair'   as FilterKey, count: repairCount   },
-    { key: 'warning'  as FilterKey, count: warningCount  },
-    { key: 'normal'   as FilterKey, count: normalCount   },
-    { key: 'good'     as FilterKey, count: goodCount     },
-    { key: 'perfect'  as FilterKey, count: perfectCount  },
-    { key: 'unknown'  as FilterKey, count: unknownCount  },
-  ] as const).filter((o) => o.count > 0).map((o) => ({
-    key: o.key,
-    label: `${o.key.charAt(0).toUpperCase() + o.key.slice(1)} (${o.count})`,
-    count: o.count,
-  }))
+  const stateFilterOptions: FilterOption[] = ([
+    { key: 'critical', count: criticalCount, color: 'var(--red)'     },
+    { key: 'repair',   count: repairCount,   color: 'var(--orange)'  },
+    { key: 'warning',  count: warningCount,  color: 'var(--yellow)'  },
+    { key: 'normal',   count: normalCount,   color: 'var(--text2)'   },
+    { key: 'good',     count: goodCount,     color: 'var(--green)'   },
+    { key: 'perfect',  count: perfectCount,  color: 'var(--accent4)' },
+    { key: 'unknown',  count: unknownCount,  color: 'var(--text3)'   },
+  ] as const)
+    .filter((o) => o.count > 0)
+    .map((o) => ({
+      key:   o.key,
+      label: `${o.key.charAt(0).toUpperCase() + o.key.slice(1)} (${o.count})`,
+      color: o.color,
+    }))
 
-  const typeFilterOptions = [...new Set(health.map((c) => c.componentType))].sort().map((t) => ({
-    key: t, label: formatEnumLabel(t),
-  }))
-
-  const currentFilterLabel = filters.length === 0
-    ? 'State'
-    : filters.length === 1
-    ? filterOptions.find((o) => o.key === filters[0])?.label?.split(' ')[0] ?? 'State'
-    : `${filters.length} states`
-  const currentSortLabel   = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'
-  const currentTypeLabel   = typeFilter.length === 0
-    ? 'Type'
-    : typeFilter.length === 1
-      ? formatEnumLabel(typeFilter[0])
-      : `${typeFilter.length} types`
+  const typeFilterOptions: FilterOption[] = [...new Set(health.map((c) => c.componentType))]
+    .sort()
+    .map((t) => ({ key: t, label: formatEnumLabel(t) }))
 
   return (
     <div>
@@ -184,203 +149,31 @@ export default function ComponentListPage() {
         </div>
       </div>
 
-      {/* Filter + Sort dropdowns */}
+      {/* Filter + Sort bar */}
       <div style={{ display: 'flex', gap: 6, padding: '0 22px 12px' }}>
-
-        {/* State filter — multi-select */}
-        <div ref={filterRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setShowFilter((p) => !p); setShowSort(false); setShowTypeFilter(false) }}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-              border: (showFilter || filters.length > 0) ? '1px solid var(--accent)' : '1px solid var(--border)',
-              background: (showFilter || filters.length > 0) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-              color: (showFilter || filters.length > 0) ? 'var(--accent)' : 'var(--text3)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {currentFilterLabel} ▾
-          </button>
-          {showFilter && (
-            <div style={{
-              position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 200,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-            }}>
-              {filters.length > 0 && (
-                <button
-                  onClick={() => setFilters([])}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '9px 14px', background: 'none', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                    color: 'var(--text3)', cursor: 'pointer',
-                  }}
-                >
-                  × Clear ({filters.length} selected)
-                </button>
-              )}
-              {filterOptions.map(({ key, label }) => {
-                const selected = filters.includes(key)
-                const dot = FILTER_COLORS[key]
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setFilters((prev) =>
-                      prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key]
-                    )}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      width: '100%', textAlign: 'left',
-                      padding: '10px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: selected ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: selected ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{
-                      width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                      border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-                      background: selected ? 'var(--accent)' : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 9, color: '#fff',
-                    }}>
-                      {selected && '✓'}
-                    </span>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: dot, flexShrink: 0,
-                    }} />
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Type filter — multi-select */}
-        <div ref={typeRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setShowTypeFilter((p) => !p); setShowFilter(false); setShowSort(false) }}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-              border: (showTypeFilter || typeFilter.length > 0) ? '1px solid var(--accent)' : '1px solid var(--border)',
-              background: (showTypeFilter || typeFilter.length > 0) ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-              color: (showTypeFilter || typeFilter.length > 0) ? 'var(--accent)' : 'var(--text3)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {currentTypeLabel} ▾
-          </button>
-          {showTypeFilter && (
-            <div style={{
-              position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 190,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-            }}>
-              {typeFilter.length > 0 && (
-                <button
-                  onClick={() => setTypeFilter([])}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '9px 14px', background: 'none', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                    color: 'var(--text3)', cursor: 'pointer',
-                  }}
-                >
-                  × Clear ({typeFilter.length} selected)
-                </button>
-              )}
-              {typeFilterOptions.map(({ key, label }) => {
-                const selected = typeFilter.includes(key)
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setTypeFilter((prev) =>
-                      prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key]
-                    )}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      width: '100%', textAlign: 'left',
-                      padding: '10px 14px', background: 'none', border: 'none',
-                      borderBottom: '1px solid var(--border)',
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: selected ? 'var(--accent)' : 'var(--text2)',
-                      fontWeight: selected ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{
-                      width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                      border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-                      background: selected ? 'var(--accent)' : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 9, color: '#fff',
-                    }}>
-                      {selected && '✓'}
-                    </span>
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Sort */}
-        <div ref={sortRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setShowSort((p) => !p); setShowFilter(false) }}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 500,
-              border: showSort ? '1px solid var(--accent)' : '1px solid var(--border)',
-              background: showSort ? 'rgba(108,99,255,0.1)' : 'var(--surface2)',
-              color: showSort ? 'var(--accent)' : 'var(--text3)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {currentSortLabel} ▾
-          </button>
-          {showSort && (
-            <div style={{
-              position: 'absolute', left: 0, top: 'calc(100% + 6px)', zIndex: 100,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 10, overflow: 'hidden', minWidth: 180,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-            }}>
-              {SORT_OPTIONS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => { setSort(key); setShowSort(false) }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '11px 14px', background: 'none', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                    color: sort === key ? 'var(--accent)' : 'var(--text2)',
-                    fontWeight: sort === key ? 600 : 400,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {sort === key && '✓ '}{label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <FilterPill
+          placeholder="State"
+          options={stateFilterOptions}
+          selected={filters}
+          onChangeMulti={setFilters}
+          multi noun="states"
+          minWidth={200}
+        />
+        <FilterPill
+          placeholder="Type"
+          options={typeFilterOptions}
+          selected={typeFilter}
+          onChangeMulti={setTypeFilter}
+          multi noun="types"
+          minWidth={190}
+        />
+        <FilterPill
+          placeholder={SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '⇅'}
+          options={SORT_OPTIONS}
+          value={sort}
+          onChange={(k) => setSort(k as SortKey)}
+          isSort
+        />
       </div>
 
 

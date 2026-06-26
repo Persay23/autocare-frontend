@@ -4,6 +4,9 @@ import {
   createRecord, updateRecord, deleteRecord,
   createRecordComponent, updateRecordComponent, deleteRecordComponent,
 } from '@/features/records/api'
+import { uploadReceiptImage } from '@/features/ai/api'
+import SmartFillButton from '@/features/ai/SmartFillButton'
+import { assetUrl } from '@/http/axios'
 import { getFuelByVehicle } from '@/features/fuel/api'
 import { getComponentsByVehicle, updateComponent, getComponentHealth } from '@/features/components/api'
 import { dedupFetch } from '@/shared/dedup'
@@ -11,14 +14,17 @@ import {
   makeEmptyEntry, entryTotal,
   type SelectedComponent, type ComponentEntry,
 } from '@/features/records/componentEntry'
-import { getPrecedingMinMileage, isMileageValid, type EventEntry } from '@/features/components/mileageBounds'
-import { useCurrencyStore, SYMBOLS, toPLN, RATES, formatMoney } from '@/features/currency/currencyStore'
+import { matchPartToComponent, entryFromPart, mergePartIntoEntry } from '@/features/records/receiptParts'
+import UnmatchedPartsPanel, { type UnmatchedPart } from '@/features/records/UnmatchedPartsPanel'
+import FieldInput from '@/ui/FieldInput'
+import { getPrecedingMinMileage, isMileageValid, type EventEntry } from '@/shared/mileageBounds'
+import { useCurrencyStore, SYMBOLS, toPLN, RATES, formatMoney, convertCurrency, isSupportedCurrency } from '@/features/currency/currencyStore'
 import { useTimelineStore } from '@/features/timeline/timelineStore'
 import { formatEnumLabel } from '@/shared/formatters'
 import { SERVICE_ICONS } from '@/shared/icons'
 import RecordComponentRow from '@/features/records/RecordComponentRow'
 import RecordComponentPicker from '@/features/records/RecordComponentPicker'
-import type { MaintenanceRecord, VehicleComponent, ComponentHealth } from '@/shared/types'
+import type { MaintenanceRecord, VehicleComponent, ComponentHealth, ReceiptParseResult } from '@/shared/types'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
@@ -59,48 +65,6 @@ interface Props {
   onDeleted?: () => void
 }
 
-// ─── sub-component ────────────────────────────────────────────────────────────
-
-function FieldInput({
-  label, value, onChange, type = 'text', placeholder, error,
-}: {
-  label: string
-  value: string | number
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  type?: string
-  placeholder?: string
-  error?: string
-}) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: 'var(--text3)',
-        textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4,
-      }}>
-        {label}
-      </div>
-      <input
-        type={type} value={value} onChange={onChange} placeholder={placeholder}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{
-          width: '100%', padding: '9px 11px', borderRadius: 10, boxSizing: 'border-box',
-          background: 'var(--surface2)', outline: 'none',
-          border: `1px solid ${error ? 'var(--red)' : focused ? 'var(--accent)' : 'var(--border)'}`,
-          boxShadow: focused ? '0 0 0 3px rgba(108,99,255,0.10)' : 'none',
-          color: 'var(--text)', fontSize: 13, fontFamily: 'inherit',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-      />
-      {error && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--red)', marginTop: 4 }}>
-          {error}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── main component ───────────────────────────────────────────────────────────
 
 export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onDeleted }: Props) {
@@ -120,7 +84,7 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
   // ── form ──────────────────────────────────────────────────────────────────
   const [form, setForm] = useState<RecordForm>({
     serviceName: '', serviceType: '',
-    startedAt: today, completedAt: today,
+    startedAt: today, completedAt: '',
     mileage: '', cost: '',
     description: '', notes: '',
     technicianName: '', vendor: '',
@@ -147,6 +111,12 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError]                 = useState<string | null>(null)
   const [focusedField, setFocusedField]   = useState<string | null>(null)
+
+  // ── receipt scan ──────────────────────────────────────────────────────────
+  // receiptFile is kept so the image can be uploaded on submit; the scan UI/state
+  // (loading, banners, file picker) lives in <SmartFillButton>.
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [unmatchedParts, setUnmatchedParts] = useState<UnmatchedPart[]>([])
 
   // ── scroll lock ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -246,9 +216,9 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                     changeType:           mrc.componentChangeType ?? mrc.changeType ?? '',
                     workDescription:      mrc.workDescription ?? '',
                     changedParts:         mrc.changedParts ?? '',
-                    laborCost:            mrc.laborCost != null ? String(mrc.laborCost) : '',
-                    partsCost:            mrc.partsCost != null ? String(mrc.partsCost) : '',
-                    otherCost:            mrc.otherCost != null ? String(mrc.otherCost) : '',
+                    laborCost:            mrc.laborCost != null ? String(parseFloat((mrc.laborCost * RATES[currency]).toFixed(2))) : '',
+                    partsCost:            mrc.partsCost != null ? String(parseFloat((mrc.partsCost * RATES[currency]).toFixed(2))) : '',
+                    otherCost:            mrc.otherCost != null ? String(parseFloat((mrc.otherCost * RATES[currency]).toFixed(2))) : '',
                     newState:             'Good',
                     customerComplaint:    mrc.customerComplaint ?? '',
                     brand:                comp.vehicleComponentBrand ?? comp.brand ?? '',
@@ -349,9 +319,110 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
     setStep(2)
   }
 
+  // ── receipt scan ──────────────────────────────────────────────────────────
+
+  // Pre-fill the form from the AI result. Amounts are converted from the receipt's
+  // currency to the user's display currency. Only overwrites a field when the AI
+  // returned a value, so manual edits are preserved. Returns conversion info for the banner.
+  const applyParsed = (r: ReceiptParseResult): { convertedFrom: string | null; unknownCurrency: string | null } => {
+    setUnmatchedParts([])
+    const detectedRaw = r.currency?.trim().toUpperCase() ?? ''
+    const detected = isSupportedCurrency(detectedRaw) ? detectedRaw : null
+    const needsConvert = detected !== null && detected !== currency
+    const conv = (amt: number) => needsConvert ? convertCurrency(amt, detected!, currency) : amt
+    const round2 = (n: number) => parseFloat(n.toFixed(2))
+
+    setForm((p) => ({
+      ...p,
+      serviceName:    r.serviceName ?? p.serviceName,
+      serviceType:    r.serviceType && (SERVICE_TYPES as readonly string[]).includes(r.serviceType)
+        ? r.serviceType : p.serviceType,
+      startedAt:      r.serviceDate ? r.serviceDate.split('T')[0] : p.startedAt,
+      mileage:        r.mileage != null ? String(r.mileage) : p.mileage,
+      cost:           r.cost != null ? String(round2(conv(r.cost))) : p.cost,
+      vendor:         r.vendorOrShop ?? p.vendor,
+      technicianName: r.technicianName ?? p.technicianName,
+      invoiceNumber:  r.invoiceNumber ?? p.invoiceNumber,
+      description:    r.description ?? p.description,
+    }))
+    if (r.mileage != null) setMileageUnknown(false)
+    if (r.invoiceNumber) setShowMoreDetails(true)
+
+    // Auto-link parts that match a tracked component; collect the rest for review.
+    // Convert each part's cost into the display currency up front.
+    const parts = (r.parts ?? []).map((pt) => ({
+      ...pt,
+      partsCost: pt.partsCost != null ? round2(conv(pt.partsCost)) : pt.partsCost,
+    }))
+    if (parts.length > 0) {
+      const taken = new Set<number | undefined>(addedIds)
+      const matched: SelectedComponent[] = []
+      const unmatched: UnmatchedPart[] = []
+      for (const part of parts) {
+        const comp = matchPartToComponent(part, allComponents, taken)
+        if (comp) {
+          taken.add(comp.vehicleComponentId ?? comp.componentId)
+          matched.push({ comp, entry: entryFromPart(part, comp) })
+        } else {
+          unmatched.push({ part, ignored: false })
+        }
+      }
+      if (matched.length > 0) setNewComponents((prev) => [...prev, ...matched])
+      setUnmatchedParts(unmatched)
+    }
+
+    return {
+      convertedFrom: needsConvert ? detected : null,
+      unknownCurrency: detectedRaw && !detected ? detectedRaw : null,
+    }
+  }
+
+  // Maps a reviewed part to a chosen component. If that component is already linked
+  // (auto-matched or mapped earlier), the part is folded into the existing entry so
+  // several parts can share one component instead of creating duplicate rows.
+  const mapUnmatchedPart = (index: number, comp: VehicleComponent) => {
+    const part = unmatchedParts[index].part
+    const id = comp.vehicleComponentId ?? comp.componentId
+
+    const inNew = newComponents.some((s) => (s.comp.vehicleComponentId ?? s.comp.componentId) === id)
+    const existing = visibleExisting.find((ec) => (ec.comp.vehicleComponentId ?? ec.comp.componentId) === id)
+
+    if (inNew) {
+      setNewComponents((prev) => prev.map((s) =>
+        (s.comp.vehicleComponentId ?? s.comp.componentId) === id
+          ? { ...s, entry: mergePartIntoEntry(s.entry, part) }
+          : s
+      ))
+    } else if (existing) {
+      setExistingComps((prev) => prev.map((ec) =>
+        ec.mrcId === existing.mrcId ? { ...ec, entry: mergePartIntoEntry(ec.entry, part) } : ec
+      ))
+    } else {
+      setNewComponents((prev) => [...prev, { comp, entry: entryFromPart(part, comp) }])
+    }
+
+    setUnmatchedParts((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // Soft ignore — keeps the row visible (struck through) and reversible until save.
+  const toggleIgnoreUnmatchedPart = (index: number) =>
+    setUnmatchedParts((prev) => prev.map((u, i) => i === index ? { ...u, ignored: !u.ignored } : u))
+
+  // Called by <SmartFillButton> with the parsed receipt — prefills the form and returns
+  // a short note (parts found / currency converted) for the button's success banner.
+  const handleRecordParsed = (data: ReceiptParseResult): string => {
+    const info = applyParsed(data)
+    const bits: string[] = []
+    const partCount = data.parts?.length ?? 0
+    if (partCount > 0) bits.push(`${partCount} part${partCount === 1 ? '' : 's'} found.`)
+    if (info.convertedFrom) bits.push(`Amounts converted from ${info.convertedFrom}.`)
+    else if (info.unknownCurrency) bits.push(`Couldn't recognise currency (${info.unknownCurrency}).`)
+    return bits.join(' ')
+  }
+
   // ── save helpers ──────────────────────────────────────────────────────────
 
-  const buildPayload = () => ({
+  const buildPayload = (invoiceImageUrl = form.invoiceImageUrl) => ({
     serviceName:    form.serviceName || null,
     serviceType:    form.serviceType,
     serviceDate:    new Date(form.startedAt).toISOString(),
@@ -365,8 +436,15 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
     technicianName: form.technicianName || null,
     vendorOrShop:   form.vendor || null,
     invoiceNumber:  form.invoiceNumber || null,
-    invoiceImageUrl: form.invoiceImageUrl || null,
+    invoiceImageUrl: invoiceImageUrl || null,
   })
+
+  // Uploads the scanned receipt (if any) on submit and returns the URL to persist.
+  const resolveInvoiceImageUrl = async () => {
+    if (!receiptFile) return form.invoiceImageUrl
+    const res = await uploadReceiptImage(receiptFile)
+    return res.data.url
+  }
 
   const saveNewComponents = async (targetId: number) => {
     for (const { comp, entry } of newComponents) {
@@ -385,19 +463,31 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
           ? parseInt(entry.expectedLifetimeKm, 10) : null,
         expectedLifetimeYears: entry.changeType === 'Replaced' && entry.expectedLifetimeYears
           ? parseInt(entry.expectedLifetimeYears, 10) : null,
-        laborCost:  entry.laborCost  ? parseFloat(entry.laborCost)  : null,
-        partsCost:  entry.partsCost  ? parseFloat(entry.partsCost)  : null,
-        otherCost:  entry.otherCost  ? parseFloat(entry.otherCost)  : null,
-        totalCost:  total > 0 ? total : null,
+        laborCost:  entry.laborCost  ? toPLN(parseFloat(entry.laborCost), currency)  : null,
+        partsCost:  entry.partsCost  ? toPLN(parseFloat(entry.partsCost), currency)  : null,
+        otherCost:  entry.otherCost  ? toPLN(parseFloat(entry.otherCost), currency)  : null,
+        totalCost:  total > 0 ? toPLN(total, currency) : null,
       })
       if (entry.changeType === 'Replaced') {
+        // Only patch component master-data that actually differs from its current value —
+        // avoids redundant PATCHes (and the AI re-generation they trigger) for auto-linked parts.
         const patch: Record<string, unknown> = {}
-        if (entry.brand)                patch.vehicleComponentBrand = entry.brand
-        if (entry.partNumber)           patch.partNumber = entry.partNumber
-        if (entry.expectedLifetimeKm)   patch.expectedLifetimeKm = parseInt(entry.expectedLifetimeKm, 10)
-        if (entry.expectedLifetimeYears) patch.expectedLifetimeYears = parseInt(entry.expectedLifetimeYears, 10)
-        if (entry.warrantyKm)           patch.warrantyKm = parseInt(entry.warrantyKm, 10)
-        if (entry.warrantyDate)         patch.warrantyDate = new Date(entry.warrantyDate).toISOString()
+        const km = entry.expectedLifetimeKm ? parseInt(entry.expectedLifetimeKm, 10) : null
+        const yr = entry.expectedLifetimeYears ? parseInt(entry.expectedLifetimeYears, 10) : null
+        const wkm = entry.warrantyKm ? parseInt(entry.warrantyKm, 10) : null
+        const curWarranty = comp.warrantyDate ? comp.warrantyDate.split('T')[0] : ''
+        if (entry.brand && entry.brand !== (comp.vehicleComponentBrand ?? comp.brand ?? ''))
+          patch.vehicleComponentBrand = entry.brand
+        if (entry.partNumber && entry.partNumber !== (comp.partNumber ?? ''))
+          patch.partNumber = entry.partNumber
+        if (km != null && km !== (comp.expectedLifetimeKm ?? null))
+          patch.expectedLifetimeKm = km
+        if (yr != null && yr !== (comp.expectedLifetimeYears ?? null))
+          patch.expectedLifetimeYears = yr
+        if (wkm != null && wkm !== (comp.warrantyKm ?? null))
+          patch.warrantyKm = wkm
+        if (entry.warrantyDate && entry.warrantyDate !== curWarranty)
+          patch.warrantyDate = new Date(entry.warrantyDate).toISOString()
         if (Object.keys(patch).length > 0) await updateComponent(compId!, patch)
       }
     }
@@ -409,7 +499,8 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
     setSaving(true)
     setError(null)
     try {
-      const res = await createRecord({ vehicleId: parseInt(vehicleId, 10), ...buildPayload() })
+      const invoiceImageUrl = await resolveInvoiceImageUrl()
+      const res = await createRecord({ vehicleId: parseInt(vehicleId, 10), ...buildPayload(invoiceImageUrl) })
       const newId = res.data.maintenanceRecordId as number
       await saveNewComponents(newId)
       invalidateTimeline()
@@ -425,7 +516,8 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
     setSaving(true)
     setError(null)
     try {
-      await updateRecord(recordId!, buildPayload())
+      const invoiceImageUrl = await resolveInvoiceImageUrl()
+      await updateRecord(recordId!, buildPayload(invoiceImageUrl))
 
       for (const mrcId of removedMrcIds) await deleteRecordComponent(mrcId)
 
@@ -438,10 +530,10 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
           workDescription:     entry.workDescription || null,
           changedParts:        entry.changedParts || null,
           newState:            entry.newState || 'Good',
-          laborCost:  entry.laborCost  ? parseFloat(entry.laborCost)  : null,
-          partsCost:  entry.partsCost  ? parseFloat(entry.partsCost)  : null,
-          otherCost:  entry.otherCost  ? parseFloat(entry.otherCost)  : null,
-          totalCost:  total > 0 ? total : null,
+          laborCost:  entry.laborCost  ? toPLN(parseFloat(entry.laborCost), currency)  : null,
+          partsCost:  entry.partsCost  ? toPLN(parseFloat(entry.partsCost), currency)  : null,
+          otherCost:  entry.otherCost  ? toPLN(parseFloat(entry.otherCost), currency)  : null,
+          totalCost:  total > 0 ? toPLN(total, currency) : null,
         })
       }
 
@@ -731,12 +823,26 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                     )}
                     {record.invoiceImageUrl && (
                       <a
-                        href={record.invoiceImageUrl}
+                        href={assetUrl(record.invoiceImageUrl)}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--accent)', textDecoration: 'underline' }}
+                        style={{ display: 'block', textDecoration: 'none' }}
                       >
-                        View invoice →
+                        <img
+                          src={assetUrl(record.invoiceImageUrl)}
+                          alt="Receipt"
+                          style={{
+                            width: '100%', maxHeight: 320, objectFit: 'contain',
+                            borderRadius: 10, border: '1px solid var(--border)',
+                            background: 'var(--surface3)',
+                          }}
+                        />
+                        <span style={{
+                          display: 'inline-block', marginTop: 6,
+                          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--accent)',
+                        }}>
+                          Open full size →
+                        </span>
                       </a>
                     )}
                   </div>
@@ -840,6 +946,14 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                   {error}
                 </div>
               )}
+
+              {/* Receipt scan */}
+              <SmartFillButton<ReceiptParseResult>
+                target="record"
+                label="Scan receipt to autofill"
+                onFileSelected={setReceiptFile}
+                onParsed={handleRecordParsed}
+              />
 
               <FieldInput
                 label="Service name"
@@ -1032,7 +1146,7 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
               >
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>More details</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
-                  Invoice no., notes, image URL…
+                  Invoice no., notes…
                 </span>
                 <span style={{ marginLeft: 'auto', color: 'var(--text3)', fontSize: 10 }}>
                   {showMoreDetails ? '▲' : '▼'}
@@ -1075,13 +1189,6 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                       transition: 'border-color 0.15s, box-shadow 0.15s',
                     }}
                   />
-                  <FieldInput
-                    label="Invoice image URL"
-                    value={form.invoiceImageUrl}
-                    onChange={set('invoiceImageUrl') as (e: React.ChangeEvent<HTMLInputElement>) => void}
-                    type="url"
-                    placeholder="https://…"
-                  />
                 </div>
               )}
             </>
@@ -1099,13 +1206,20 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                 </div>
               )}
 
+              {/* AI-found parts not auto-linked */}
+              <UnmatchedPartsPanel
+                parts={unmatchedParts}
+                allComponents={allComponents}
+                onMap={mapUnmatchedPart}
+                onToggleIgnore={toggleIgnoreUnmatchedPart}
+              />
+
               {/* Existing components (edit mode) */}
               {visibleExisting.map(({ mrcId, comp, entry }) => (
                 <RecordComponentRow
                   key={mrcId}
                   comp={comp}
                   entry={entry}
-                  defaultExpanded
                   onChange={(field, value) => updateExisting(mrcId, field, value)}
                   onRemove={() => removeExisting(mrcId)}
                 />
@@ -1117,7 +1231,6 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
                   key={comp.vehicleComponentId ?? comp.componentId}
                   comp={comp}
                   entry={entry}
-                  defaultExpanded
                   onChange={(field, value) => updateNew(comp.vehicleComponentId ?? comp.componentId, field, value)}
                   onRemove={() => removeNew(comp.vehicleComponentId ?? comp.componentId)}
                 />

@@ -18,9 +18,48 @@ import {
   clearSkipped,
   formatAnnualKm,
   PRIMARY_USAGE_LABELS, STYLE_LABELS, USAGE_LABELS, CLIMATE_LABELS, PARKING_LABELS,
-} from '@/features/drivingProfile/utils'
+} from '@/shared/drivingProfile'
 import { useDrivingProfileStore } from '@/features/drivingProfile/drivingProfileStore'
 
+const PILL_STYLES = {
+  on:      { bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', color: 'var(--green)'  },
+  partial: { bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)', color: 'var(--yellow)' },
+  off:     { bg: 'var(--surface3)',       border: 'var(--border)',        color: 'var(--text3)'  },
+} as const
+
+function PillToggle({ state, label, onClick }: {
+  state: 'on' | 'partial' | 'off'
+  label?: string
+  onClick: () => void
+}) {
+  const s = PILL_STYLES[state]
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        minWidth: 58, padding: '5px 10px', borderRadius: 999,
+        background: s.bg, border: `1px solid ${s.border}`,
+        cursor: 'pointer', flexShrink: 0, marginLeft: 12,
+        transition: 'background 0.2s, border-color 0.2s',
+      }}
+    >
+      <span style={{
+        width: 5, height: 5, borderRadius: '50%',
+        background: s.color, flexShrink: 0,
+        opacity: state === 'off' ? 0.5 : 1,
+        transition: 'background 0.2s',
+      }} />
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+        letterSpacing: '0.08em', color: s.color,
+      }}>
+        {label ?? (state === 'off' ? 'OFF' : 'ON')}
+      </span>
+    </button>
+  )
+}
 
 export default function Profile() {
   const { user, logout } = useAuth()
@@ -520,7 +559,6 @@ export default function Profile() {
         const onCount  = vals.filter(Boolean).length
         const allOn    = onCount === vals.length
         const anyOn    = onCount > 0
-        const toggleBg = allOn ? 'var(--accent)' : anyOn ? 'var(--yellow)' : 'var(--surface3)'
         const statusTxt = allOn
           ? 'All notifications on'
           : anyOn
@@ -595,23 +633,11 @@ export default function Profile() {
                       {statusTxt}
                     </div>
                   </div>
-                  <button
-                    type="button"
+                  <PillToggle
+                    state={allOn ? 'on' : anyOn ? 'partial' : 'off'}
+                    label={allOn ? 'ON' : anyOn ? `${onCount}/${vals.length}` : 'OFF'}
                     onClick={() => setAllNotif(!allOn)}
-                    style={{
-                      position: 'relative', width: 48, height: 26,
-                      borderRadius: 13, border: 'none', flexShrink: 0,
-                      background: toggleBg, cursor: 'pointer',
-                      transition: 'background 0.2s',
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: 3, left: anyOn ? 25 : 3,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#fff', transition: 'left 0.2s',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-                    }} />
-                  </button>
+                  />
                 </div>
 
                 {/* Individual rows */}
@@ -659,23 +685,7 @@ export default function Profile() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleNotif(key)}
-                        style={{
-                          position: 'relative', width: 44, height: 24,
-                          borderRadius: 12, border: 'none', flexShrink: 0, marginLeft: 12,
-                          background: on ? 'var(--accent)' : 'var(--surface3)',
-                          cursor: 'pointer', transition: 'background 0.2s',
-                        }}
-                      >
-                        <span style={{
-                          position: 'absolute', top: 2, left: on ? 22 : 2,
-                          width: 20, height: 20, borderRadius: '50%',
-                          background: '#fff', transition: 'left 0.2s',
-                          boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                        }} />
-                      </button>
+                      <PillToggle state={on ? 'on' : 'off'} onClick={() => toggleNotif(key)} />
                     </div>
                   )
                 })}
