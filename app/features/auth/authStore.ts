@@ -30,6 +30,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearToken()
     set({ user: null })
+    // Hard reload so all in-memory stores (expenses, vehicles, quota, …) are wiped —
+    // otherwise the next user who logs in could see the previous user's cached data.
+    window.location.href = '/login'
   },
 }))
 

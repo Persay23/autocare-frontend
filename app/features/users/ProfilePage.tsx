@@ -20,6 +20,7 @@ import {
   PRIMARY_USAGE_LABELS, STYLE_LABELS, USAGE_LABELS, CLIMATE_LABELS, PARKING_LABELS,
 } from '@/shared/drivingProfile'
 import { useDrivingProfileStore } from '@/features/drivingProfile/drivingProfileStore'
+import { useAiQuotaStore } from '@/features/ai/aiQuotaStore'
 
 const PILL_STYLES = {
   on:      { bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', color: 'var(--green)'  },
@@ -84,8 +85,11 @@ export default function Profile() {
 
   const { vehicles, fetch: fetchVehicles } = useVehiclesStore()
   const { summaries, fetchAll: fetchExpenses } = useExpensesStore()
+  const aiQuota = useAiQuotaStore((s) => s.quota)
+  const refreshAiQuota = useAiQuotaStore((s) => s.refresh)
 
   useEffect(() => { fetchVehicles() }, [fetchVehicles])
+  useEffect(() => { refreshAiQuota() }, [refreshAiQuota])
   useEffect(() => {
     if (!vehicles.length) return
     fetchExpenses(vehicles.map((v) => v.vehicleId))
@@ -468,6 +472,42 @@ export default function Profile() {
             </div>
           </button>
         )}
+      </div>
+
+      {/* AI usage */}
+      <div style={{ margin: '0 22px 12px' }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10, color: 'var(--text3)',
+          textTransform: 'uppercase', letterSpacing: '0.12em',
+          marginBottom: 8,
+        }}>
+          AI Usage
+        </div>
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 14, padding: '14px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+              {aiQuota ? `${aiQuota.tier} plan` : 'AI plan'}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginTop: 3 }}>
+              {!aiQuota
+                ? 'loading…'
+                : aiQuota.unlimited
+                ? 'unlimited AI requests'
+                : `${aiQuota.used} / ${aiQuota.limit} used today · resets at midnight`}
+            </div>
+          </div>
+          <div style={{
+            fontSize: 20, fontWeight: 800,
+            color: aiQuota?.unlimited ? 'var(--accent)' : 'var(--text)',
+          }}>
+            {!aiQuota ? '—' : aiQuota.unlimited ? '∞' : aiQuota.remaining}
+          </div>
+        </div>
       </div>
 
       {/* Appearance */}

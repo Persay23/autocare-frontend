@@ -7,6 +7,7 @@ import './styles/global.css'
 import { theme } from './styles/muiTheme'
 import { router } from './router.tsx'
 import { initTheme } from './styles/theme'
+import AiQuotaSnackbar from './ui/AiQuotaSnackbar'
 
 initTheme()
 
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <RouterProvider router={router} />
+      <AiQuotaSnackbar />
     </ThemeProvider>
   </StrictMode>
 )

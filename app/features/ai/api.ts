@@ -24,3 +24,15 @@ export const uploadReceiptImage = (image: File) => {
   data.append('image', image)
   return api.post<{ url: string }>('/uploads/receipt', data)
 }
+
+export interface AiQuota {
+  tier: string
+  used: number
+  limit: number | null      // null when unlimited
+  remaining: number | null  // null when unlimited
+  unlimited: boolean
+  resetsAt: string
+}
+
+// Current user's AI tier + today's usage (drives the quota snackbar + profile display).
+export const getAiQuota = () => api.get<AiQuota>('/ai/quota')

@@ -14,11 +14,26 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Matches the AI endpoints that consume quota (POST only — the GET diagnose history doesn't).
+const AI_CONSUME = /\/ai\/(parse|predict|suggest|diagnose)\b/
+
+const isAiConsume = (cfg?: { method?: string; url?: string }): boolean =>
+  cfg?.method?.toLowerCase() === 'post' && !!cfg.url && AI_CONSUME.test(cfg.url)
+
+// Notify the quota UI after any AI action so it can refresh the remaining count.
+const signalAiUsage = (ok: boolean, status?: number) =>
+  window.dispatchEvent(new CustomEvent('ai-usage', { detail: { ok, status } }))
+
 // A 401 means the token is missing/expired/invalid — drop it and send the user to login.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (isAiConsume(response.config)) signalAiUsage(true)
+    return response
+  },
   (error: unknown) => {
-    const status = (error as { response?: { status?: number } }).response?.status
+    const e = error as { response?: { status?: number }; config?: { method?: string; url?: string } }
+    const status = e.response?.status
+    if (isAiConsume(e.config)) signalAiUsage(false, status)
     if (status === 401 && !window.location.pathname.includes('/login')) {
       clearToken()
       window.location.href = '/login'
