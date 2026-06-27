@@ -15,4 +15,11 @@ export const login = (email: string, password: string) =>
 
 export const logout = () => api.post('/auth/logout')
 
-export const register = (dto: Record<string, unknown>) => api.post('/users', dto)
+export const register = (dto: Record<string, unknown>) => api.post('/auth/register', dto)
+
+// Email confirmation
+export const confirmEmail = (userId: string, token: string) =>
+  api.get('/auth/confirm-email', { params: { userId, token } })
+
+export const resendConfirmation = (email: string) =>
+  api.post('/auth/resend-confirmation', { email })

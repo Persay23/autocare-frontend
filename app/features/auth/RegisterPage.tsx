@@ -1,13 +1,11 @@
 ﻿import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { register as apiRegister } from '@/features/auth/api'
+import { Link } from 'react-router-dom'
+import { register as apiRegister, resendConfirmation } from '@/features/auth/api'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
 import { labelStyle } from '@/styles/pageStyles'
 
 export default function Register() {
-  const navigate = useNavigate()
-
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -18,6 +16,8 @@ export default function Register() {
   })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [resendNote, setResendNote] = useState<string | null>(null)
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -36,7 +36,7 @@ export default function Register() {
         drivingExperience: form.drivingExperience ? Number.parseInt(form.drivingExperience, 10) : null,
         gender: form.gender,
       })
-      navigate('/login')
+      setSubmitted(true)
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string; 0?: { description?: string } } } }
       setError(
@@ -47,6 +47,57 @@ export default function Register() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleResend = async () => {
+    setResendNote(null)
+    try {
+      await resendConfirmation(form.email)
+      setResendNote('Confirmation link sent again — check your inbox.')
+    } catch {
+      setResendNote('Could not resend right now. Please try again shortly.')
+    }
+  }
+
+  // After a successful sign-up: ask the user to confirm their email before logging in.
+  if (submitted) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: 420, padding: '40px 22px', textAlign: 'center' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>📬</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
+            Check your inbox
+          </div>
+          <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 6 }}>
+            We sent a confirmation link to
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--accent)', marginBottom: 20, wordBreak: 'break-all' }}>
+            {form.email}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 20 }}>
+            Click the link in that email to activate your account, then sign in.
+          </div>
+
+          {resendNote && (
+            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 14 }}>{resendNote}</div>
+          )}
+
+          <button
+            onClick={handleResend}
+            style={{
+              width: '100%', padding: 13, borderRadius: 12, marginBottom: 12,
+              background: 'var(--surface2)', color: 'var(--text)',
+              border: '1px solid var(--border)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Resend link
+          </button>
+          <Link to="/login" style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 14 }}>
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (

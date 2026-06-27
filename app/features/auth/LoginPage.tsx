@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/features/auth/useAuth'
+import { resendConfirmation } from '@/features/auth/api'
 import { ErrorBanner } from '@/ui/AsyncStates'
 import { inputStyle, onFocus, onBlur } from '@/ui/formStyles'
 import { labelStyle } from '@/styles/pageStyles'
@@ -13,20 +14,39 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [needsConfirm, setNeedsConfirm] = useState(false)
+  const [resendNote, setResendNote] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
+    setNeedsConfirm(false)
+    setResendNote(null)
     setLoading(true)
 
     try {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ? `Invalid email or password. (${msg})` : 'Invalid email or password.')
+      const data = (err as { response?: { data?: { message?: string; code?: string } } }).response?.data
+      if (data?.code === 'email_not_confirmed') {
+        setNeedsConfirm(true)
+        setError(data.message ?? 'Please confirm your email before logging in.')
+      } else {
+        setError(data?.message ?? 'Invalid email or password.')
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResendNote(null)
+    try {
+      await resendConfirmation(email)
+      setResendNote('Confirmation link sent — check your inbox.')
+    } catch {
+      setResendNote('Could not resend right now. Please try again shortly.')
     }
   }
 
@@ -76,6 +96,24 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} style={{ padding: '0 22px' }}>
         {error && <ErrorBanner message={error} />}
+
+        {needsConfirm && (
+          <div style={{ marginBottom: 14, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={handleResend}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'underline',
+              }}
+            >
+              Resend confirmation link
+            </button>
+            {resendNote && (
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>{resendNote}</div>
+            )}
+          </div>
+        )}
 
         <div style={{ marginBottom: 10 }}>
           <label style={labelStyle}>Email</label>
