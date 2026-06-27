@@ -291,8 +291,7 @@ export default function VehicleOverviewPage() {
             vehicleComponentBrand: null,
             state: 'Good',
             installationDate: new Date().toISOString(),
-            // 1 (not 0) — install mileage of 0 is treated as "Unknown" by the health calc.
-            installedAtVehicleMileage: 1,
+            installedAtVehicleMileage: 0,
             expectedLifetimeKm: defaults.lifetimeKm,
             expectedLifetimeYears: defaults.lifetimeYears,
             notes: null,
