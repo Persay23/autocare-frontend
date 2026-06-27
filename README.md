@@ -14,7 +14,9 @@ Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets u
 | Build tool | Vite |
 | Routing | React Router v7 |
 | State | Zustand (per-feature stores with TTL cache) |
-| HTTP | Axios (shared instance, `withCredentials`) |
+| HTTP | Axios (shared instance, **JWT bearer** header) |
+| Auth | JWT stored in `localStorage`, sent as `Authorization: Bearer` |
+| PWA | `vite-plugin-pwa` (installable, offline app shell) |
 | Icons | Material UI icons |
 | Fonts | Outfit + JetBrains Mono (Google Fonts) |
 | Linting | ESLint |
@@ -23,7 +25,11 @@ Mobile-first vehicle maintenance tracking SPA built as a diploma project. Lets u
 
 ## Features
 
-- Cookie-based auth — register, login, persistent session check on every load
+- **JWT auth** — register, login (token stored in `localStorage`), session check on every load; logout fully resets in-memory state
+- **Installable PWA** — "Add to Home Screen", standalone launch, cached app shell (`vite-plugin-pwa`)
+- **AI usage feedback** — a top banner shows "N AI requests left today" after each AI action; exact tier + usage on the Profile page
+- **Smart Fill** — scan a document photo to auto-fill a form (records, fuel, components, expenses, vehicles)
+- **Vehicle history export** — download a vehicle's full history as Markdown or PDF
 - Vehicle list (Car Park) with per-vehicle health overview cards
 - Per-vehicle tabs: Overview · Records · Components · Fuel · Predictions
 - Maintenance records with full cost breakdown and per-component line items
@@ -187,7 +193,7 @@ npm run preview   # Serve the production build locally
 
 ## API Connection
 
-A shared Axios instance (`app/http/axios.ts`) sets `baseURL` from `VITE_API_URL` and `withCredentials: true` on every request. A 401 response interceptor redirects to `/login` automatically. Each domain's API functions live in `app/features/<domain>/api.ts` and are called only through their respective store or directly by modals.
+A shared Axios instance (`app/http/axios.ts`) sets `baseURL` from `VITE_API_URL` and attaches the **JWT bearer token** (`Authorization: Bearer <token>`, read from `localStorage` via `features/auth/token.ts`) on every request. A `401` response interceptor clears the token and redirects to `/login`. The same interceptor fires an `ai-usage` event after AI calls so the quota banner can refresh. Each domain's API functions live in `app/features/<domain>/api.ts` and are called only through their respective store or directly by modals.
 
 ---
 
@@ -204,7 +210,8 @@ Each domain feature owns a **Zustand store** with a TTL-based cache. Components 
 | `currencyStore` | Selected currency + `formatMoney` / `toPLN` helpers |
 | `drivingProfileStore` | Driving profile for the current user |
 | `notificationsStore` | In-app notification count and list |
-| `authStore` | Current user identity; polled every 60 s against `/api/users/me` |
+| `authStore` | Current user identity + JWT; validated against `/api/users/me`; fully reset on logout |
+| `aiQuotaStore` | Current user's AI tier + daily usage (drives the quota banner + Profile) |
 
 Request deduplication (`app/lib/dedup.ts`) prevents multiple concurrent fetches for the same key when several components mount simultaneously.
 
