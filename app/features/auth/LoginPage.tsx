@@ -28,13 +28,15 @@ export default function Login() {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      const data = (err as { response?: { data?: { message?: string; code?: string } } }).response?.data
+      const e = err as { response?: { status?: number; data?: { message?: string; code?: string } } }
+      const data = e.response?.data
       if (data?.code === 'email_not_confirmed') {
         setNeedsConfirm(true)
         setError(data.message ?? 'Please confirm your email before logging in.')
-      } else {
+      } else if (e.response?.status === 401) {
         setError(data?.message ?? 'Invalid email or password.')
       }
+      // no-response / 429 / 500 → global ErrorSnackbar
     } finally {
       setLoading(false)
     }

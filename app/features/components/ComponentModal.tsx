@@ -262,9 +262,8 @@ export default function ComponentModal({ componentId, vehicleId, onClose, onSave
       })
       onSaved()
       onClose()
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to update component.')
+    } catch {
+      // global ErrorSnackbar handles it
     } finally {
       setSaving(false)
     }
@@ -353,9 +352,8 @@ export default function ComponentModal({ componentId, vehicleId, onClose, onSave
       })
       onSaved()
       onClose()
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to add component.')
+    } catch {
+      // global ErrorSnackbar handles it
     } finally {
       setSaving(false)
     }

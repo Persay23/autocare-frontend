@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import TimelineItem from '@/ui/TimelineItem'
 import HealthBar from '@/ui/HealthBar'
+import StatusPill from '@/ui/StatusPill'
 import GlobalFab from '@/ui/GlobalFab'
 import { useAuth } from '@/features/auth/useAuth'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
@@ -11,7 +12,7 @@ import { useExpensesStore } from '@/features/expenses/expenseStore'
 import { usePredictionsStore } from '@/features/predictions/predictionStore'
 import { formatEnumLabel } from '@/shared/formatters'
 import { COMPONENT_ICONS } from '@/shared/icons'
-import logo from '@/assets/Logo.png'
+import Wordmark from '@/ui/Wordmark'
 import type { TimelineEvent } from '@/shared/types'
 import { useCurrencyStore, formatMoney } from '@/features/currency/currencyStore'
 import { colorFromPct } from '@/shared/healthState'
@@ -154,12 +155,12 @@ export default function Home() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '18px 22px 14px',
         }}>
-          <img src={logo} alt="AutoCare" style={{ height: 25 }} />
+          <Wordmark size={22} />
           <div
             onClick={() => navigate('/profile')}
             style={{
               width: 34, height: 34, borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              background: 'var(--brand-gradient)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer',
             }}
@@ -196,7 +197,7 @@ export default function Home() {
             onClick={() => navigate('/profile')}
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              background: 'var(--brand-gradient)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer',
             }}
@@ -213,7 +214,7 @@ export default function Home() {
             {/* Spend this month */}
             <div style={{
               background: 'var(--surface2)', border: '1px solid var(--border)',
-              borderRadius: 12, padding: '12px 14px',
+              borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-card)',
             }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>
                 THIS MONTH
@@ -231,16 +232,18 @@ export default function Home() {
               <div
                 onClick={() => topAlertVehicle && navigate(`/vehicles/${topAlertVehicle.vehicleId}/components`)}
                 style={{
-                  background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)',
-                  borderRadius: 12, padding: '12px 14px',
+                  position: 'relative', overflow: 'hidden',
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-card)',
                   cursor: topAlertVehicle ? 'pointer' : 'default',
                 }}
               >
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: 'var(--red)' }} />
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>
                   TOP ALERT
                 </div>
                 <div style={{
-                  fontSize: 13, fontWeight: 700, color: 'var(--red)', lineHeight: 1.2,
+                  fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                   {topAlert.vehicleComponentName ?? formatEnumLabel(topAlert.componentType)}
@@ -255,7 +258,7 @@ export default function Home() {
             ) : (
               <div style={{
                 background: 'rgba(52,211,153,0.07)', border: '1px solid rgba(52,211,153,0.2)',
-                borderRadius: 12, padding: '12px 14px',
+                borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-card)',
               }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>
                   ALERTS
@@ -276,6 +279,7 @@ export default function Home() {
                 margin: '0 22px 12px',
                 background: 'var(--surface)', border: '1px solid var(--border)',
                 borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+                boxShadow: 'var(--shadow-card)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -317,6 +321,7 @@ export default function Home() {
             const healthPct = Math.min(c.kmLifetimePercent ?? 0, c.yearsLifetimePercent ?? 0)
             const derivedState = c.currentState ?? 'Unknown'
             const attnStyle = ATTENTION_STYLE[derivedState]
+            const accent = attnStyle?.labelColor ?? colorFromPct(healthPct)
             const CI = COMPONENT_ICONS[c.componentType] ?? COMPONENT_ICONS.Other
             const displayName = c.vehicleComponentName || formatEnumLabel(c.componentType)
             const subtitle = [
@@ -330,18 +335,20 @@ export default function Home() {
                 key={c.componentId}
                 onClick={() => vehicle && navigate(`/vehicles/${vehicle.vehicleId}/components`)}
                 style={{
-                  background: attnStyle?.cardBg ?? 'var(--surface2)',
-                  border: `1px solid ${attnStyle?.cardBorder ?? 'var(--border)'}`,
+                  position: 'relative', overflow: 'hidden',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
                   borderRadius: 12, padding: '12px 14px', marginBottom: 8, cursor: 'pointer',
+                  boxShadow: 'var(--shadow-card)',
                 }}
               >
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: accent }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                    background: 'var(--surface3)', border: '1px solid var(--border)',
+                    background: `color-mix(in srgb, ${accent} 14%, transparent)`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <CI sx={{ fontSize: 18, color: attnStyle?.labelColor ?? colorFromPct(healthPct) }} />
+                    <CI sx={{ fontSize: 18, color: accent }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2 }}>
@@ -356,17 +363,14 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700,
-                    color: attnStyle?.labelColor ?? 'var(--text2)', flexShrink: 0,
-                  }}>
-                    {derivedState}
-                  </span>
+                  <div style={{ flexShrink: 0 }}>
+                    <StatusPill status={derivedState} />
+                  </div>
                 </div>
                 <HealthBar percent={healthPct} />
                 <div style={{
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                  color: attnStyle?.labelColor, marginTop: 5, textAlign: 'right',
+                  color: accent, marginTop: 5, textAlign: 'right',
                 }}>
                   {Math.round(healthPct)}% left
                 </div>

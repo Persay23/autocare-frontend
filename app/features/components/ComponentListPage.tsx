@@ -2,6 +2,7 @@
 import { useParams } from 'react-router-dom'
 import ComponentModal from '@/features/components/ComponentModal'
 import HealthBar from '@/ui/HealthBar'
+import StatusPill from '@/ui/StatusPill'
 import { getComponentHealth } from '@/features/components/api'
 import { dedupFetch } from '@/shared/dedup'
 import { LoadingState, ErrorState, EmptyState } from '@/ui/AsyncStates'
@@ -24,12 +25,6 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ]
 
 const ATTENTION_STATES = new Set(['Critical', 'Repair', 'Warning'])
-
-const ATTENTION_STYLE: Record<string, { cardBg: string; cardBorder: string; labelColor: string }> = {
-  Critical: { cardBg: 'rgba(248,113,113,0.07)', cardBorder: 'rgba(248,113,113,0.22)', labelColor: 'var(--red)' },
-  Repair:   { cardBg: 'rgba(251,146,60,0.07)',  cardBorder: 'rgba(251,146,60,0.22)',  labelColor: 'var(--orange)' },
-  Warning:  { cardBg: 'rgba(251,191,36,0.07)',  cardBorder: 'rgba(251,191,36,0.22)',  labelColor: 'var(--yellow)' },
-}
 
 /** Returns the component state from the backend health response. */
 function getDerivedState(c: ComponentHealth): string {
@@ -195,7 +190,7 @@ export default function ComponentListPage() {
                 Needs Attention
               </div>
               {needsAttention.map((c) => (
-                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} attention />
+                <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} />
               ))}
             </>
           )}
@@ -231,7 +226,7 @@ export default function ComponentListPage() {
           )}
 
           {!showGroups && sortedHealth.map((c) => (
-            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} attention={ATTENTION_STATES.has(getDerivedState(c))} />
+            <ComponentCard key={c.componentId} component={c} vehicleId={vehicleId} onNavigate={() => setModalComponentId(c.componentId)} />
           ))}
         </div>
       )}
@@ -275,19 +270,17 @@ export default function ComponentListPage() {
 }
 
 function ComponentCard({
-  component, vehicleId, onNavigate, attention = false,
+  component, vehicleId, onNavigate,
 }: {
   component: ComponentHealth
   vehicleId: string | undefined
   onNavigate: (path: string) => void
-  attention?: boolean
 }) {
   const healthPct = Math.min(component.kmLifetimePercent ?? 0, component.yearsLifetimePercent ?? 0)
   const hColor = colorFromPct(healthPct)
   const CI = COMPONENT_ICONS[component.componentType] ?? COMPONENT_ICONS.Other
   const derivedState = component.currentState ?? 'Unknown'
   const isUnknown    = derivedState === 'Unknown'
-  const attnStyle    = ATTENTION_STYLE[derivedState]
   const displayColor = isUnknown ? 'var(--text2)' : hColor
   const displayName = component.vehicleComponentName || formatEnumLabel(component.componentType)
   const subtitle = [
@@ -299,18 +292,20 @@ function ComponentCard({
     <div
       onClick={() => onNavigate(`/vehicles/${vehicleId}/components/${component.componentId}`)}
       style={{
-        background: attention && attnStyle ? attnStyle.cardBg : 'var(--surface2)',
-        border: `1px solid ${attention && attnStyle ? attnStyle.cardBorder : 'var(--border)'}`,
+        position: 'relative', overflow: 'hidden',
+        background: 'var(--surface2)', border: '1px solid var(--border)',
         borderRadius: 12, padding: '12px 14px', marginBottom: 8, cursor: 'pointer',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: displayColor }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: 'var(--surface3)', border: '1px solid var(--border)',
+          background: `color-mix(in srgb, ${displayColor} 14%, transparent)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <CI sx={{ fontSize: 18, color: attention && attnStyle ? attnStyle.labelColor : hColor }} />
+          <CI sx={{ fontSize: 18, color: displayColor }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', lineHeight: 1.2 }}>
@@ -325,15 +320,8 @@ function ComponentCard({
             </div>
           )}
         </div>
-        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-          <span style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13, fontWeight: 700,
-            color: displayColor,
-            lineHeight: 1.2,
-          }}>
-            {derivedState}
-          </span>
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <StatusPill status={derivedState} />
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 9,

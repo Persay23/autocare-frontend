@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageShell from '@/ui/layout/PageShell'
 import DetailRow from '@/ui/DetailRow'
@@ -8,7 +8,7 @@ import DrivingSurveySheet from '@/ui/DrivingSurveySheet'
 import { useAuth } from '@/features/auth/useAuth'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { useExpensesStore } from '@/features/expenses/expenseStore'
-import { getTheme, setTheme } from '@/styles/theme'
+import { useThemeStore } from '@/styles/themeStore'
 import { useCurrencyStore, formatMoney, type Currency, SYMBOLS } from '@/features/currency/currencyStore'
 import { useNotificationsStore } from '@/features/notifications/notificationStore'
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
@@ -78,7 +78,9 @@ export default function Profile() {
     fetch: fetchProfile,
     save: saveProfile,
   } = useDrivingProfileStore()
-  const [isDark, setIsDark] = useState(() => getTheme() !== 'light')
+  const themeMode = useThemeStore((s) => s.mode)
+  const toggleTheme = useThemeStore((s) => s.toggle)
+  const isDark = themeMode === 'dark'
   const [notifOpen, setNotifOpen] = useState(false)
   const { currency, setCurrency } = useCurrencyStore()
   const { prefs: notifPrefs, toggle: toggleNotif, setAll: setAllNotif } = useNotificationsStore()
@@ -100,12 +102,6 @@ export default function Profile() {
     if (user) fetchProfile(user.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
-
-  const toggleTheme = useCallback(() => {
-    const next = isDark ? 'light' : 'dark'
-    setTheme(next)
-    setIsDark(!isDark)
-  }, [isDark])
 
   const [form, setForm] = useState({
     name: user?.name ?? '',

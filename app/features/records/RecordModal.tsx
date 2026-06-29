@@ -505,9 +505,7 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
       await saveNewComponents(newId)
       invalidateTimeline()
       onSaved(newId)
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to save record.')
+    } catch {
       setSaving(false)
     }
   }
@@ -540,9 +538,7 @@ export default function RecordModal({ vehicleId, recordId, onClose, onSaved, onD
       await saveNewComponents(recordId!)
       invalidateTimeline()
       onSaved(recordId!)
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? 'Failed to update record.')
+    } catch {
       setSaving(false)
     }
   }

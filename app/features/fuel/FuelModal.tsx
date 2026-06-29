@@ -208,6 +208,7 @@ export default function FuelModal({ vehicleId, entryId, onClose, onSaved }: Prop
   const handleSave = async () => {
     if (!effectiveVehicleId) { setSubmitError('Please select a vehicle.'); return }
     if (mileageError) { setSubmitError(mileageError); return }
+    if (Number(form.amount) <= 0) { setSubmitError('Amount must be greater than 0.'); return }
     setSubmitError(null)
     setSaving(true)
     try {
@@ -228,9 +229,7 @@ export default function FuelModal({ vehicleId, entryId, onClose, onSaved }: Prop
       }
       invalidateTimeline()
       onSaved()
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setSubmitError(msg ?? 'Failed to save.')
+    } catch {
       setSaving(false)
     }
   }

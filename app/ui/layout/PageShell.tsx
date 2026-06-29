@@ -10,7 +10,7 @@ export default function PageShell({ children }: { children: ReactNode }) {
         marginLeft: 240,
         marginRight: 260,
         minHeight: '100vh',
-        background: 'var(--surface)',
+        background: 'var(--bg)',
       }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           {children}

@@ -228,9 +228,8 @@ export default function VehicleModal({ vehicleId, onClose, onSaved }: Props) {
       invalidate()
       refetchVehicles()
       onSaved()
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setError(msg ?? (isCreate ? 'Failed to add vehicle.' : 'Failed to update vehicle.'))
+    } catch {
+      // global ErrorSnackbar handles it
     } finally {
       setSaving(false)
     }

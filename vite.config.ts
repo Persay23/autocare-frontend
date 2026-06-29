@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon_io/favicon.ico', 'favicon_io/apple-touch-icon.png'],
       manifest: {
         name: 'AutoCare — Vehicle Maintenance',

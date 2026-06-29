@@ -2,40 +2,36 @@ interface StatusPillProps {
   status: string
 }
 
-const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
-  Perfect:  { bg: 'rgba(56,189,248,0.1)',  color: '#38bdf8' },
-  Good:     { bg: 'rgba(52,211,153,0.1)',  color: '#34d399' },
-  Normal:   { bg: 'rgba(251,191,36,0.1)',  color: '#fbbf24' },
-  Repair:   { bg: 'rgba(251,146,60,0.1)',  color: '#fb923c' },
-  Critical: { bg: 'rgba(248,113,113,0.1)', color: '#f87171' },
-  Unknown:  { bg: 'rgba(123,128,168,0.1)', color: '#7b80a8' },
+// Theme-aware: colours come from CSS variables (which flip per theme); the tinted
+// background and border are derived from the same colour via color-mix so the pill
+// reads correctly in both light and dark. Status shown as an accent, not a fill.
+const STATUS_COLOR: Record<string, string> = {
+  Perfect:  'var(--accent4)',
+  Good:     'var(--green)',
+  Normal:   'var(--yellow)',
+  Repair:   'var(--orange)',
+  Critical: 'var(--red)',
+  Unknown:  'var(--text3)',
 }
 
 export default function StatusPill({ status }: StatusPillProps) {
-  const style = STATUS_STYLES[status] ?? STATUS_STYLES.Unknown
+  const color = STATUS_COLOR[status] ?? STATUS_COLOR.Unknown
 
   return (
     <span style={{
       display: 'inline-flex',
       alignItems: 'center',
-      gap: 5,
       padding: '3px 9px',
       borderRadius: 999,
-      background: style.bg,
-      color: style.color,
+      background: `color-mix(in srgb, ${color} 12%, transparent)`,
+      border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+      color,
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: 9,
       fontWeight: 600,
       letterSpacing: '0.02em',
       whiteSpace: 'nowrap',
     }}>
-      <span style={{
-        width: 5,
-        height: 5,
-        borderRadius: '50%',
-        background: style.color,
-        flexShrink: 0,
-      }} />
       {status}
     </span>
   )

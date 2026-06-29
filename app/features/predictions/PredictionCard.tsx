@@ -32,8 +32,8 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
   const urgencyStyle = URGENCY_STYLE[prediction.urgency] ?? URGENCY_STYLE.Suggested
 
   const cardStyle = isDim
-    ? { background: 'var(--surface2)', borderColor: 'var(--border)', opacity: isDim ? (isCompleted ? 0.55 : 0.4) : 1 }
-    : { background: urgencyStyle.bg, borderColor: urgencyStyle.border }
+    ? { background: 'var(--surface2)', borderColor: 'var(--border)', opacity: isCompleted ? 0.55 : 0.4 }
+    : { background: 'var(--surface)', borderColor: 'var(--border)' }
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -47,9 +47,15 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
         borderRadius: 14,
         padding: '10px 12px',
         cursor: onClick ? 'pointer' : 'default',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-card)',
         ...cardStyle,
       }}
     >
+      {!isDim && (
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: urgencyStyle.dot }} />
+      )}
       {/* Urgency / status row — date lives here too */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         {!isDim ? (
@@ -177,7 +183,7 @@ export default function PredictionCard({ prediction, onDone, onIgnore, onClick }
               {Math.round(prediction.confidenceScore * 100)}%
             </span>
           </div>
-          <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+          <div style={{ height: 4, borderRadius: 2, background: 'var(--track)', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
               width: `${Math.round(prediction.confidenceScore * 100)}%`,

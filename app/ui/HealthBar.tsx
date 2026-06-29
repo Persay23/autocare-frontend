@@ -12,7 +12,7 @@ export default function HealthBar({ percent, height = 4, gradient = false }: Hea
   return (
     <div style={{
       height,
-      background: 'var(--border)',
+      background: 'var(--track)',
       borderRadius: 99,
       overflow: 'hidden',
       flex: 1,

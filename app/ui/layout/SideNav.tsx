@@ -12,7 +12,7 @@ import BuildIcon from '@mui/icons-material/Build'
 import AddCardIcon from '@mui/icons-material/AddCard'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import HealingIcon from '@mui/icons-material/Healing'
-import logo from '@/assets/Logo.png'
+import Wordmark from '@/ui/Wordmark'
 import { useVehiclesStore } from '@/features/vehicles/vehicleStore'
 import { useDiagnoseModal } from '@/features/vehicles/diagnoseModalStore'
 import { useExpenseModal } from '@/features/expenses/expenseModalStore'
@@ -99,7 +99,7 @@ export default function SideNav() {
     }}>
       {/* Brand */}
       <div style={{ padding: '0 20px 24px' }}>
-        <img src={logo} alt="AutoCare" style={{ height: 24, width: 'auto', display: 'block' }} />
+        <Wordmark size={22} />
       </div>
 
       <div style={{ height: 1, background: 'var(--border)', margin: '0 16px 12px' }} />

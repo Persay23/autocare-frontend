@@ -40,7 +40,7 @@ function StatusPill({ changeType }: { changeType: string }) {
     <span style={{
       fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
       color,
-      background: changeType ? `${color}1a` : 'rgba(255,255,255,0.05)',
+      background: changeType ? `${color}1a` : 'var(--surface3)',
       border: `1px solid ${changeType ? `${color}33` : 'var(--border)'}`,
       padding: '3px 8px', borderRadius: 4, letterSpacing: '0.06em', flexShrink: 0,
     }}>
@@ -89,7 +89,7 @@ export default function RecordComponentRow({
       >
         <div style={{
           width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: isPending ? 'rgba(255,255,255,0.04)' : `${statusColor}1a`,
+          background: isPending ? 'var(--surface2)' : `${statusColor}1a`,
           border: `1px solid ${isPending ? 'var(--border)' : `${statusColor}33`}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>

@@ -313,14 +313,17 @@ export default function VehicleOverviewPage() {
         <div
           onClick={() => navigate(`/vehicles/${vehicleId}/components`)}
           style={{
+            position: 'relative', overflow: 'hidden',
             margin: '8px 22px 12px',
-            background: 'rgba(248,113,113,0.07)',
-            border: '1px solid rgba(248,113,113,0.25)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
             borderRadius: 12,
             padding: '12px 14px',
             cursor: 'pointer',
+            boxShadow: 'var(--shadow-card)',
           }}
         >
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: 'var(--red)' }} />
           {/* Header row: title left, counts right */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -379,13 +382,16 @@ export default function VehicleOverviewPage() {
 
       {attnComponents.length === 0 && (
         <div style={{
+          position: 'relative', overflow: 'hidden',
           margin: '8px 22px 12px',
-          background: 'rgba(74,222,128,0.06)',
-          border: '1px solid rgba(74,222,128,0.2)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '10px 14px',
           display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: 'var(--shadow-card)',
         }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: 'var(--green)' }} />
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>
             Everything looks good
@@ -400,6 +406,7 @@ export default function VehicleOverviewPage() {
         border: '1px solid var(--border)',
         borderRadius: 12,
         padding: '14px 16px',
+        boxShadow: 'var(--shadow-card)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <HealthRing health={health} />

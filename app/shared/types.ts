@@ -164,7 +164,6 @@ export interface AiDiagnosis {
   likelyCauses: string[]
   recommendedActions: string[]
   relatedComponents: string[]
-  disclaimer: string
   createdAt: string
 }
 

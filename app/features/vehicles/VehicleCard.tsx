@@ -2,7 +2,7 @@
 import StatusPill from '@/ui/StatusPill'
 import HealthBar from '@/ui/HealthBar'
 import { formatEnumLabel } from '@/shared/formatters'
-import { colorFromPct } from '@/shared/healthState'
+import { colorFromPct, stateColor } from '@/shared/healthState'
 import type { Vehicle, ComponentHealth } from '@/shared/types'
 
 const STATE_ORDER = ['Critical', 'Repair', 'Normal', 'Good', 'Perfect', 'Unknown'] as const
@@ -45,10 +45,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
 
   const hasPills = (health?.length ?? 0) > 0
 
-  const isCritical = worstState === 'Critical'
-  const cardStyle = isCritical
-    ? { background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)' }
-    : { background: 'var(--surface)',         border: '1px solid var(--border)' }
+  const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)' }
 
   const meta = [
     vehicle.brand,
@@ -69,13 +66,14 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
         cursor: 'pointer',
         position: 'relative',
         overflow: 'hidden',
+        boxShadow: 'var(--shadow-card)',
         ...cardStyle,
       }}
     >
-      {/* Left accent strip */}
+      {/* Left accent strip — coloured by the vehicle's worst component state */}
       <div style={{
         position: 'absolute', left: 0, top: 0, bottom: 0,
-        width: 3, background: 'var(--accent)',
+        width: 4, background: worstState ? stateColor(worstState) : 'var(--accent)',
       }} />
 
       {/* Meta */}
@@ -104,7 +102,7 @@ export default function VehicleCard({ vehicle, health }: { vehicle: Vehicle; hea
               {overallHealth}%
             </span>
           </div>
-          <HealthBar percent={overallHealth} gradient />
+          <HealthBar percent={overallHealth} />
         </div>
       )}
 

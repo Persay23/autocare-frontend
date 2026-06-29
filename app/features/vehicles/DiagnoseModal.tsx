@@ -5,6 +5,12 @@ import { useDiagnoseModal } from '@/features/vehicles/diagnoseModalStore'
 import type { AiDiagnosis } from '@/shared/types'
 import CloseIcon from '@mui/icons-material/Close'
 
+// ── constants ─────────────────────────────────────────────────────────────────
+
+const DIAGNOSIS_DISCLAIMER =
+  'This is an AI-assisted assessment only. Always consult a qualified mechanic ' +
+  'before making repair decisions or continuing to drive if safety may be affected.'
+
 // ── urgency config ────────────────────────────────────────────────────────────
 
 const URGENCY_CONFIG = {
@@ -95,10 +101,10 @@ function AiCard({ item }: { item: AiDiagnosis }) {
       )}
 
       <div style={{
-        paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)',
+        paddingTop: 10, borderTop: '1px solid var(--border)',
         fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 6,
       }}>
-        {item.disclaimer}
+        {DIAGNOSIS_DISCLAIMER}
       </div>
       <div style={{ textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text3)' }}>
         {new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}

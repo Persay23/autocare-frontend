@@ -27,12 +27,12 @@ export default function BottomNav() {
   return (
     <nav style={{
       padding: '6px 6px 8px',
-      background: 'rgba(18,18,28,0.82)',
+      background: 'var(--nav-bg)',
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
       borderRadius: 22,
-      border: '1px solid var(--border)',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+      border: '1px solid var(--nav-border)',
+      boxShadow: 'var(--nav-shadow)',
     }}>
       <div style={{ position: 'relative', display: 'flex' }}>
         {/* Sliding indicator */}
@@ -42,7 +42,8 @@ export default function BottomNav() {
             inset: 0,
             width: `${100 / NAV_ITEMS.length}%`,
             borderRadius: 14,
-            background: 'rgba(108,99,255,0.2)',
+            background: 'var(--brand-tint)',
+            boxShadow: '0 0 16px rgba(108,103,240,0.25)',
             transform: `translateX(${activeIndex * 100}%)`,
             transition: 'transform 0.28s cubic-bezier(0.34,1.56,0.64,1)',
             pointerEvents: 'none',

@@ -102,14 +102,14 @@ export default function FloatingAddButton({ options, onPress }: FloatingAddButto
           borderRadius: '50%',
           background: open
             ? 'linear-gradient(135deg, var(--accent3), var(--red))'
-            : 'linear-gradient(135deg, var(--accent), var(--accent2))',
+            : 'var(--brand-gradient)',
           border: 'none',
           cursor: 'pointer',
           color: '#fff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(108,99,255,0.5)',
+          boxShadow: 'var(--fab-shadow)',
           zIndex: 100,
           transition: 'background 0.2s, transform 0.2s',
         }}

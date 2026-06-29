@@ -1,49 +1,97 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg:       #07080f;
-  --surface:  #0d0f1c;
-  --surface2: #131628;
-  --surface3: #1a1d32;
-  --border:   #252840;
-  --border2:  #1e2138;
+  /* Surfaces — desaturated neutral; cards sit ~2–3% lighter than the app bg so
+     elevation reads without leaning on borders. */
+  --bg:       #0e0f14;
+  --surface:  #181a22;
+  --surface2: #1f2230;
+  --surface3: #272a38;
+  --border:   #2a2e3c;
+  --border2:  #20242f;
 
   --accent:   #6c63ff;
   --accent2:  #4f8fff;
   --accent3:  #a78bfa;
   --accent4:  #38bdf8;
 
-  --text:     #e8eaf6;
-  --text2:    #7b80a8;
-  --text3:    #444870;
+  --text:     #f4f5f7;
+  --text2:    #8990a0;   /* lifted so metadata clears the contrast floor on dark cards */
+  --text3:    #7c8395;
 
   --green:    #34d399;
   --red:      #f87171;
   --orange:   #fb923c;
   --yellow:   #fbbf24;
+
+  /* Elevation — dark relies on surface contrast + hairline, not shadow. */
+  --shadow-card: none;
+  --track: rgba(255,255,255,0.07);
+
+  /* Brand */
+  --brand-gradient: linear-gradient(150deg, #6c67f0, #4f4adb);
+  --brand-tint: rgba(139,135,245,0.16);
+
+  /* Status — granular: text (labels) vs accent (bars/icons/progress) vs tint (fills) vs border. */
+  --critical-text:   #ff8488;
+  --critical-accent: #ff5c60;
+  --critical-tint:   rgba(255,92,96,0.14);
+  --critical-border: rgba(255,92,96,0.25);
+  --repair-text:     #ffb070;
+  --repair-accent:   #ff9d4d;
+  --repair-tint:     rgba(255,157,77,0.14);
+  --repair-border:   rgba(255,157,77,0.25);
+
+  /* Frosted bottom nav */
+  --nav-bg:     rgba(20,21,27,0.8);
+  --nav-border: rgba(255,255,255,0.07);
+  --nav-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  --fab-shadow: 0 8px 26px rgba(108,103,240,0.55);
 }
 
 [data-theme="light"] {
-  --bg:       #f0f2fc;
+  /* Calmer, near-neutral light surfaces (not blue-grey); cards lift off the app bg via shadow. */
+  --bg:       #f5f6f8;
   --surface:  #ffffff;
-  --surface2: #e8ebf8;
-  --surface3: #dde1f5;
-  --border:   #c8cce8;
-  --border2:  #d4d8f0;
+  --surface2: #ffffff;
+  --surface3: #f0f1f4;
+  --border:   #eceef2;
+  --border2:  #e6e8ee;
 
-  --accent:   #6c63ff;
+  --accent:   #5a55e0;
   --accent2:  #4f8fff;
   --accent3:  #7c5cfa;
   --accent4:  #0ea5e9;
 
-  --text:     #1c1f3a;
-  --text2:    #50567e;
-  --text3:    #8087b8;
+  --text:     #14161b;
+  --text2:    #6b7280;   /* AA on white (~4.8:1); the spec's #9298A4 fails AA, so deviated */
+  --text3:    #8a909c;
 
   --green:    #059669;
   --red:      #dc2626;
   --orange:   #ea580c;
   --yellow:   #d97706;
+
+  /* Elevation — light uses soft shadows, not borders, to separate cards from the bg. */
+  --shadow-card: 0 1px 2px rgba(20,22,30,0.04), 0 4px 14px rgba(20,22,30,0.05);
+  --track: #f0f1f4;
+
+  --brand-gradient: linear-gradient(150deg, #6c67f0, #4f4adb);
+  --brand-tint: #eeedfc;
+
+  --critical-text:   #c0353a;
+  --critical-accent: #e5484d;
+  --critical-tint:   #fdecec;
+  --critical-border: #f7d9d9;
+  --repair-text:     #b65f08;
+  --repair-accent:   #d9730d;
+  --repair-tint:     #fcf1e6;
+  --repair-border:   #f2dec3;
+
+  --nav-bg:     rgba(255,255,255,0.86);
+  --nav-border: #eaecf0;
+  --nav-shadow: 0 8px 28px rgba(20,22,30,0.10);
+  --fab-shadow: 0 8px 22px rgba(80,74,219,0.35);
 }
 
 *,

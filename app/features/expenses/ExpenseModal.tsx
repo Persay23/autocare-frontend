@@ -58,7 +58,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       onClick={onToggle}
       style={{
         width: 44, height: 26, borderRadius: 13,
-        background: on ? 'var(--accent)' : 'rgba(255,255,255,0.12)',
+        background: on ? 'var(--accent)' : 'var(--surface3)',
         position: 'relative', cursor: 'pointer',
         transition: 'background 0.2s', flexShrink: 0,
       }}
@@ -242,9 +242,8 @@ export default function ExpenseModal({ expenseId, onClose, onSaved }: Props) {
       }
       invalidate()
       onSaved()
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message
-      setSubmitError(msg ?? 'Failed to save expense.')
+    } catch {
+      // global ErrorSnackbar handles it
     } finally {
       setSaving(false)
     }

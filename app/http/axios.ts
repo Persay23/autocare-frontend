@@ -24,20 +24,54 @@ const isAiConsume = (cfg?: { method?: string; url?: string }): boolean =>
 const signalAiUsage = (ok: boolean, status?: number) =>
   window.dispatchEvent(new CustomEvent('ai-usage', { detail: { ok, status } }))
 
-// A 401 means the token is missing/expired/invalid — drop it and send the user to login.
+const fireErrorToast = (message: string) =>
+  window.dispatchEvent(new CustomEvent('error-toast', { detail: { message } }))
+
 api.interceptors.response.use(
   (response) => {
     if (isAiConsume(response.config)) signalAiUsage(true)
     return response
   },
   (error: unknown) => {
-    const e = error as { response?: { status?: number }; config?: { method?: string; url?: string } }
-    const status = e.response?.status
-    if (isAiConsume(e.config)) signalAiUsage(false, status)
-    if (status === 401 && !window.location.pathname.includes('/login')) {
-      clearToken()
-      window.location.href = '/login'
+    const e = error as {
+      response?: { status?: number; data?: { message?: string } }
+      config?: { method?: string; url?: string }
     }
+    const status = e.response?.status
+
+    // AI calls: hand off entirely to AiQuotaSnackbar via the ai-usage event.
+    if (isAiConsume(e.config)) {
+      signalAiUsage(false, status)
+      return Promise.reject(error)
+    }
+
+    // 401: drop the token and redirect — no toast needed.
+    if (status === 401) {
+      if (!window.location.pathname.includes('/login')) {
+        clearToken()
+        window.location.href = '/login'
+      }
+      return Promise.reject(error)
+    }
+
+    // 404: silent — the calling UI handles the empty / not-found state itself.
+    if (status === 404) return Promise.reject(error)
+
+    // Everything else gets a toast. For 400/409 the backend sends a specific message;
+    // for 500/429/network errors we use a safe generic string.
+    const serverMessage = e.response?.data?.message
+
+    const message = !e.response
+      ? 'Cannot reach the server — check your connection.'
+      : status === 500
+      ? 'Server error — try again in a moment.'
+      : status === 429
+      ? 'Too many requests — try again in a minute.'
+      : status === 403
+      ? "You don't have permission to do this."
+      : serverMessage ?? 'Something went wrong.'
+
+    fireErrorToast(message)
     return Promise.reject(error)
   }
 )
